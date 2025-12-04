@@ -389,6 +389,15 @@ elif page == "📊 採点結果":
                     st.write(f"**総合スコア:** {result.get('total_score', 0)}/60")
                     st.write(f"**ステータス:** {result.get('evaluation_status', '不明')}")
                 
+                # 削除ボタン
+                delete_key = f"delete_result_{result.get('id')}_{idx}"
+                if st.button("🗑️ 削除", key=delete_key, type="secondary"):
+                    if delete_evaluation_result(result.get('id')):
+                        st.success("採点結果を削除しました")
+                        st.rerun()
+                    else:
+                        st.error("削除に失敗しました")
+                
                 # 評価詳細
                 details = get_evaluation_details(result.get('id'))
                 if details:

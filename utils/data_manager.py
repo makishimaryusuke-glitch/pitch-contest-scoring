@@ -65,6 +65,16 @@ def get_all_schools() -> List[Dict[str, Any]]:
     """すべての参加校を取得"""
     return load_json(SCHOOLS_FILE)
 
+def delete_school(school_id: int) -> bool:
+    """参加校を削除"""
+    schools = load_json(SCHOOLS_FILE)
+    original_count = len(schools)
+    schools = [s for s in schools if s['id'] != school_id]
+    if len(schools) < original_count:
+        save_json(SCHOOLS_FILE, schools)
+        return True
+    return False
+
 # ==================== Submissions ====================
 
 def create_submission(school_id: int, theme_title: str,
@@ -238,6 +248,23 @@ def get_all_evaluation_results() -> List[Dict[str, Any]]:
             result['school_name'] = submission.get('school_name', '不明')
     
     return results
+
+def delete_evaluation_result(result_id: int) -> bool:
+    """採点結果を削除（関連する詳細も削除）"""
+    # 採点結果を削除
+    results = load_json(EVALUATION_RESULTS_FILE)
+    original_count = len(results)
+    results = [r for r in results if r['id'] != result_id]
+    if len(results) < original_count:
+        save_json(EVALUATION_RESULTS_FILE, results)
+        
+        # 関連する詳細も削除
+        details = load_json(EVALUATION_DETAILS_FILE)
+        details = [d for d in details if d['evaluation_result_id'] != result_id]
+        save_json(EVALUATION_DETAILS_FILE, details)
+        
+        return True
+    return False
 
 # ==================== Evaluation Criteria ====================
 
