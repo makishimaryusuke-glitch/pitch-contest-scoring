@@ -5,7 +5,7 @@ __pycache__/
 *.so
 .Python
 env/
-# venv/  # 仮想環境はコミットしない（.gitignoreに含める）
+venv/  # 仮想環境はコミットしない
 ENV/
 build/
 develop-eggs/

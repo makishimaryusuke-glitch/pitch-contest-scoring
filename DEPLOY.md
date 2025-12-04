@@ -1,3 +1,25 @@
+# デプロイガイド
+
+## デプロイプラットフォームの選択
+
+このアプリはStreamlitで構築されているため、以下のプラットフォームでデプロイできます：
+
+### 推奨：Streamlit Cloud（最も簡単）
+- ✅ 無料
+- ✅ GitHubと連携して自動デプロイ
+- ✅ Streamlit専用に最適化
+- 📍 https://share.streamlit.io/
+
+### その他の選択肢
+- **Railway**: https://railway.app/（無料枠あり）
+- **Render**: https://render.com/（無料枠あり）
+- **Fly.io**: https://fly.io/（無料枠あり）
+- **Google Cloud Run**: https://cloud.google.com/run（従量課金）
+
+**注意：** VercelはStreamlitアプリの直接デプロイには対応していません。Vercelで動かすには、FastAPI + Next.jsへの変換が必要です。詳細は `VERCEL_DEPLOY.md` を参照してください。
+
+---
+
 # Streamlit Cloud デプロイガイド
 
 ## デプロイ手順
