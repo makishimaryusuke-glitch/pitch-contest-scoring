@@ -309,8 +309,9 @@ elif page == "📊 採点結果":
                                     reverse=True)
         
         # 結果一覧
-        for result in filtered_results:
-            with st.expander(f"{result.get('school_name', '不明')} - {result.get('theme_title', '不明')} (スコア: {result.get('total_score', 0)}/60)"):
+        for idx, result in enumerate(filtered_results):
+            result_id = result.get('id', f'result_{idx}')
+            with st.expander(f"{result.get('school_name', '不明')} - {result.get('theme_title', '不明')} (スコア: {result.get('total_score', 0)}/60)", key=f"expander_{result_id}"):
                 # 詳細情報
                 col1, col2 = st.columns(2)
                 with col1:
@@ -327,7 +328,7 @@ elif page == "📊 採点結果":
                     
                     # レーダーチャート
                     fig = create_radar_chart(details)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, key=f"radar_chart_{result_id}")
                     
                     # 詳細テーブル
                     detail_data = []
