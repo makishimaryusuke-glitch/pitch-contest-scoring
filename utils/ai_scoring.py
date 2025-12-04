@@ -229,8 +229,24 @@ def evaluate_with_gemini(content: str, criterion_id: int) -> Dict[str, any]:
     prompt = prompt_template.format(content=content[:8000])
     
     try:
-        # gemini-proは非推奨のため、最新のgemini-1.5-flashを使用
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # 利用可能なモデル名を試行
+        # gemini-pro → gemini-1.0-pro → gemini-pro-vision の順で試す
+        model_names = ['gemini-pro', 'gemini-1.0-pro', 'gemini-1.5-pro', 'gemini-1.5-flash']
+        model = None
+        last_error = None
+        
+        for model_name in model_names:
+            try:
+                model = genai.GenerativeModel(model_name)
+                # テスト呼び出しでモデルが利用可能か確認
+                break
+            except Exception as e:
+                last_error = e
+                continue
+        
+        if model is None:
+            raise Exception(f"利用可能なGeminiモデルが見つかりませんでした。最後のエラー: {last_error}")
+        
         response = model.generate_content(prompt)
         
         result_text = response.text
