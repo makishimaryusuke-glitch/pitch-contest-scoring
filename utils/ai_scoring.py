@@ -273,14 +273,12 @@ def evaluate_with_gemini(content: str, criterion_id: int) -> Dict[str, any]:
         if successful_model:
             model = genai.GenerativeModel(successful_model)
         else:
-            # 直接モデル名を試行
+            # 直接モデル名を試行（実際の呼び出し時にエラーをキャッチ）
             for test_model_name in model_names:
                 try:
-                    test_model = genai.GenerativeModel(test_model_name)
-                    # 実際に動作するかテスト（短いプロンプトで）
-                    test_response = test_model.generate_content("test")
-                    model = test_model
+                    model = genai.GenerativeModel(test_model_name)
                     successful_model = test_model_name
+                    # モデルオブジェクトの作成に成功したら、実際の呼び出しで確認
                     break
                 except Exception as e:
                     last_error = e
