@@ -436,6 +436,27 @@ elif page == "🏫 参加校管理":
     
     schools = get_all_schools()
     if schools:
+        # 参加校一覧を表示
+        for idx, school in enumerate(schools):
+            col1, col2, col3 = st.columns([3, 1, 1])
+            with col1:
+                st.write(f"**{school.get('name', '不明')}**")
+                if school.get('prefecture'):
+                    st.caption(f"都道府県: {school.get('prefecture')}")
+            with col2:
+                st.write(f"ID: {school.get('id')}")
+            with col3:
+                delete_key = f"delete_school_{school.get('id')}_{idx}"
+                if st.button("🗑️ 削除", key=delete_key, type="secondary"):
+                    if delete_school(school.get('id')):
+                        st.success("参加校を削除しました")
+                        st.rerun()
+                    else:
+                        st.error("削除に失敗しました")
+            st.divider()
+        
+        # データフレーム表示（参考用）
+        st.subheader("データ一覧")
         df = pd.DataFrame(schools)
         st.dataframe(df, width='stretch')
     else:
