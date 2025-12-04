@@ -229,7 +229,8 @@ def evaluate_with_gemini(content: str, criterion_id: int) -> Dict[str, any]:
     prompt = prompt_template.format(content=content[:8000])
     
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        # gemini-proは非推奨のため、最新のgemini-1.5-flashを使用
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         
         result_text = response.text
