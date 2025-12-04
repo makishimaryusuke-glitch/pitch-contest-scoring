@@ -166,7 +166,7 @@ if page == "🏠 ダッシュボード":
         df = pd.DataFrame(sorted_results)
         display_cols = ["school_name", "theme_title", "total_score", "evaluated_at"]
         available_cols = [col for col in display_cols if col in df.columns]
-        st.dataframe(df[available_cols], use_container_width=True)
+        st.dataframe(df[available_cols], width='stretch')
     else:
         st.info("まだ採点結果がありません")
 
@@ -362,8 +362,8 @@ elif page == "📊 採点結果":
             else:
                 result_id = str(result_id)
             
-            expander_key = f"expander_{result_id}_{idx}"
-            with st.expander(f"{result.get('school_name', '不明')} - {result.get('theme_title', '不明')} (スコア: {result.get('total_score', 0)}/60)", key=expander_key):
+            # st.expanderはkeyパラメータをサポートしていないため、削除
+            with st.expander(f"{result.get('school_name', '不明')} - {result.get('theme_title', '不明')} (スコア: {result.get('total_score', 0)}/60)"):
                 # 詳細情報
                 col1, col2 = st.columns(2)
                 with col1:
@@ -381,7 +381,7 @@ elif page == "📊 採点結果":
                     # レーダーチャート
                     fig = create_radar_chart(details)
                     chart_key = f"radar_chart_{result_id}_{idx}"
-                    st.plotly_chart(fig, use_container_width=True, key=chart_key)
+                    st.plotly_chart(fig, width='stretch', key=chart_key)
                     
                     # 詳細テーブル
                     detail_data = []
@@ -391,7 +391,7 @@ elif page == "📊 採点結果":
                             "スコア": f"{detail.get('score', 0)}/10",
                             "評価理由": detail.get("evaluation_reason", "")
                         })
-                    st.dataframe(pd.DataFrame(detail_data), use_container_width=True)
+                    st.dataframe(pd.DataFrame(detail_data), width='stretch')
         
         # エクスポート
         st.subheader("エクスポート")
@@ -412,6 +412,6 @@ elif page == "🏫 参加校管理":
     schools = get_all_schools()
     if schools:
         df = pd.DataFrame(schools)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width='stretch')
     else:
         st.info("参加校が登録されていません")
