@@ -229,23 +229,50 @@ def evaluate_with_gemini(content: str, criterion_id: int) -> Dict[str, any]:
     prompt = prompt_template.format(content=content[:8000])
     
     try:
-        # 利用可能なモデル名を試行
-        # gemini-pro → gemini-1.0-pro → gemini-pro-vision の順で試す
-        model_names = ['gemini-pro', 'gemini-1.0-pro', 'gemini-1.5-pro', 'gemini-1.5-flash']
-        model = None
-        last_error = None
-        
-        for model_name in model_names:
-            try:
-                model = genai.GenerativeModel(model_name)
-                # テスト呼び出しでモデルが利用可能か確認
-                break
-            except Exception as e:
-                last_error = e
-                continue
-        
-        if model is None:
-            raise Exception(f"利用可能なGeminiモデルが見つかりませんでした。最後のエラー: {last_error}")
+        # 利用可能なモデルを動的に取得して使用
+        try:
+            # まず利用可能なモデル一覧を取得
+            available_models = genai.list_models()
+            model_name = None
+            
+            # generateContentをサポートするモデルを探す
+            preferred_models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro', 'gemini-1.0-pro']
+            for preferred in preferred_models:
+                for model_info in available_models:
+                    if model_info.name.endswith(preferred) and 'generateContent' in model_info.supported_generation_methods:
+                        model_name = preferred
+                        break
+                if model_name:
+                    break
+            
+            # 見つからない場合は、最初のgenerateContentをサポートするモデルを使用
+            if not model_name:
+                for model_info in available_models:
+                    if 'generateContent' in model_info.supported_generation_methods:
+                        # モデル名から最後の部分を取得（例: models/gemini-pro → gemini-pro）
+                        model_name = model_info.name.split('/')[-1]
+                        break
+            
+            if not model_name:
+                raise Exception("generateContentをサポートするGeminiモデルが見つかりませんでした")
+            
+            model = genai.GenerativeModel(model_name)
+        except Exception as list_error:
+            # モデル一覧取得に失敗した場合は、デフォルトのモデル名を試す
+            model_names = ['gemini-pro', 'gemini-1.0-pro']
+            model = None
+            last_error = None
+            
+            for model_name in model_names:
+                try:
+                    model = genai.GenerativeModel(model_name)
+                    break
+                except Exception as e:
+                    last_error = e
+                    continue
+            
+            if model is None:
+                raise Exception(f"利用可能なGeminiモデルが見つかりませんでした。モデル一覧取得エラー: {list_error}, 最後の試行エラー: {last_error}")
         
         response = model.generate_content(prompt)
         
