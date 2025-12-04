@@ -13,16 +13,47 @@ _client = None
 _ai_provider = None
 _genai_configured = False
 
-def set_api_key(api_key: str, provider: str = "openai"):
+def detect_api_provider(api_key: str) -> str:
+    """APIキーの形式からプロバイダーを自動検出"""
+    api_key = api_key.strip()
+    
+    # Google Gemini APIキーは通常 "AIzaSy" で始まる
+    if api_key.startswith("AIzaSy"):
+        return "gemini"
+    # OpenAI APIキーは通常 "sk-" で始まる
+    elif api_key.startswith("sk-"):
+        return "openai"
+    else:
+        # デフォルトはopenai（後方互換性のため）
+        return "openai"
+
+def set_api_key(api_key: str, provider: str = None):
     """APIキーを設定（アプリ内で入力）"""
     global _client, _ai_provider, _genai_configured
     
+    # プロバイダーが指定されていない場合は自動検出
+    if provider is None:
+        provider = detect_api_provider(api_key)
+    
     _ai_provider = provider.lower()
     
+    # APIキーの形式とプロバイダーが一致しているか確認
     if _ai_provider == "openai":
+        if not api_key.startswith("sk-"):
+            raise ValueError(
+                f"OpenAI APIキーの形式が正しくありません。"
+                f"提供されたキーはGoogle Gemini APIキーのようです（AIzaSy...で始まります）。"
+                f"プロバイダーを「gemini」に変更してください。"
+            )
         from openai import OpenAI
         _client = OpenAI(api_key=api_key)
     elif _ai_provider == "gemini":
+        if not api_key.startswith("AIzaSy"):
+            raise ValueError(
+                f"Google Gemini APIキーの形式が正しくありません。"
+                f"提供されたキーはOpenAI APIキーのようです（sk-...で始まります）。"
+                f"プロバイダーを「openai」に変更してください。"
+            )
         import google.generativeai as genai
         genai.configure(api_key=api_key)
         _genai_configured = True

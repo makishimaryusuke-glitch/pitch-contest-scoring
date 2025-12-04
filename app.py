@@ -70,36 +70,52 @@ if page == "⚙️ API設定":
         st.markdown("### 方法1: アプリ内で設定（一時的）")
         st.warning("⚠️ ブラウザを閉じると消えます")
         
-        provider = st.selectbox("AIプロバイダーを選択", ["openai", "gemini"])
+        # APIキーを先に入力してもらう
+        api_key = st.text_input("APIキーを入力", type="password", 
+                               help="OpenAI APIキー（sk-...で始まる）またはGoogle Gemini APIキー（AIzaSy...で始まる）")
         
-        if provider == "openai":
-            api_key = st.text_input("OpenAI APIキー", type="password", 
-                                   help="https://platform.openai.com/api-keys で取得できます")
-            if st.button("APIキーを設定"):
-                if api_key:
-                    try:
-                        set_api_key(api_key, provider)
-                        st.session_state.api_key_set = True
-                        st.session_state.api_provider = provider
-                        st.success("✅ APIキーが設定されました（ブラウザを閉じると消えます）")
-                    except Exception as e:
-                        st.error(f"エラー: {str(e)}")
-                else:
-                    st.warning("APIキーを入力してください")
-        else:
-            api_key = st.text_input("Google Gemini APIキー", type="password",
-                                   help="https://makersuite.google.com/app/apikey で取得できます")
-            if st.button("APIキーを設定"):
-                if api_key:
-                    try:
-                        set_api_key(api_key, provider)
-                        st.session_state.api_key_set = True
-                        st.session_state.api_provider = provider
-                        st.success("✅ APIキーが設定されました（ブラウザを閉じると消えます）")
-                    except Exception as e:
-                        st.error(f"エラー: {str(e)}")
-                else:
-                    st.warning("APIキーを入力してください")
+        # APIキーが入力されたら、自動検出を試みる
+        detected_provider = None
+        if api_key:
+            try:
+                from utils.ai_scoring import detect_api_provider
+                detected_provider = detect_api_provider(api_key)
+                if detected_provider == "openai":
+                    st.info("🔍 OpenAI APIキーを検出しました")
+                elif detected_provider == "gemini":
+                    st.info("🔍 Google Gemini APIキーを検出しました")
+            except:
+                pass
+        
+        # プロバイダー選択（自動検出された場合はそれをデフォルトに）
+        provider_options = ["openai", "gemini"]
+        default_index = 0
+        if detected_provider == "gemini":
+            default_index = 1
+        
+        provider = st.selectbox(
+            "AIプロバイダーを選択（自動検出された場合はそのまま）", 
+            provider_options,
+            index=default_index,
+            help="APIキーの形式から自動検出されますが、手動で変更することもできます"
+        )
+        
+        if st.button("APIキーを設定"):
+            if api_key:
+                try:
+                    set_api_key(api_key, provider)
+                    st.session_state.api_key_set = True
+                    st.session_state.api_provider = provider
+                    st.success("✅ APIキーが設定されました（ブラウザを閉じると消えます）")
+                except Exception as e:
+                    st.error(f"エラー: {str(e)}")
+                    # より詳細なエラーメッセージを表示
+                    if "形式が正しくありません" in str(e):
+                        st.info("💡 ヒント: APIキーの形式を確認してください。")
+                        st.markdown("- OpenAI APIキー: `sk-`で始まります")
+                        st.markdown("- Google Gemini APIキー: `AIzaSy`で始まります")
+            else:
+                st.warning("APIキーを入力してください")
         
         st.markdown("---")
         st.markdown("### 方法2: Streamlit Cloud Secretsで設定（推奨・永続的）")
