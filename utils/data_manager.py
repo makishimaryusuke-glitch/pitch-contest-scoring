@@ -41,9 +41,7 @@ def get_next_id(data_list: List[Dict[str, Any]]) -> int:
 
 # ==================== Schools ====================
 
-def create_school(name: str, prefecture: Optional[str] = None,
-                  contact_email: Optional[str] = None,
-                  contact_name: Optional[str] = None) -> int:
+def create_school(name: str, prefecture: Optional[str] = None) -> int:
     """参加校を作成"""
     schools = load_json(SCHOOLS_FILE)
     school_id = get_next_id(schools)
@@ -51,8 +49,6 @@ def create_school(name: str, prefecture: Optional[str] = None,
         "id": school_id,
         "name": name,
         "prefecture": prefecture,
-        "contact_email": contact_email,
-        "contact_name": contact_name,
         "created_at": datetime.now().isoformat(),
         "updated_at": datetime.now().isoformat()
     }

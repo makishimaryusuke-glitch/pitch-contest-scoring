@@ -138,13 +138,10 @@ elif page == "📤 提出資料のアップロード":
             st.subheader("新規参加校を登録")
             new_school_name = st.text_input("学校名 *")
             new_prefecture = st.text_input("都道府県")
-            new_contact_email = st.text_input("連絡先メール")
-            new_contact_name = st.text_input("担当者名")
             
             if st.button("参加校を登録"):
                 if new_school_name:
-                    school_id = create_school(new_school_name, new_prefecture,
-                                             new_contact_email, new_contact_name)
+                    school_id = create_school(new_school_name, new_prefecture)
                     st.success(f"参加校を登録しました（ID: {school_id}）")
                     st.rerun()
     else:
