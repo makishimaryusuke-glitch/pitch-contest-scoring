@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+# venv/  # 仮想環境はコミットしない（.gitignoreに含める）
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Streamlit
+# .streamlit/config.toml はコミットする（デプロイに必要）
+.streamlit/secrets.toml
+
+# 環境変数（使用しないが念のため）
+.env
+
+# データファイル（必要に応じてコミット）
+# data/*.json
+
+# アップロードファイル
+uploads/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# バックアップ
+*.bak
+*.backup
+
