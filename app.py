@@ -40,50 +40,99 @@ page = st.sidebar.selectbox(
 if page == "⚙️ API設定":
     st.title("⚙️ API設定")
     
-    st.info("AI採点機能を使用するには、OpenAIまたはGoogle GeminiのAPIキーが必要です。")
-    
-    provider = st.selectbox("AIプロバイダーを選択", ["openai", "gemini"])
-    
-    if provider == "openai":
-        api_key = st.text_input("OpenAI APIキー", type="password", 
-                               help="https://platform.openai.com/api-keys で取得できます")
-        if st.button("APIキーを設定"):
-            if api_key:
-                try:
-                    set_api_key(api_key, provider)
-                    st.session_state.api_key_set = True
-                    st.session_state.api_provider = provider
-                    st.success("✅ APIキーが設定されました")
-                except Exception as e:
-                    st.error(f"エラー: {str(e)}")
-            else:
-                st.warning("APIキーを入力してください")
+    # 環境変数からAPIキーが設定されているか確認
+    env_provider = get_api_provider_from_env()
+    if env_provider:
+        st.success("✅ 環境変数からAPIキーが設定されています（Streamlit Cloud Secrets）")
+        st.info(f"現在のプロバイダー: {env_provider}")
+        st.markdown("---")
+        st.markdown("### 環境変数の設定方法")
+        st.markdown("""
+        Streamlit Cloudのダッシュボードで：
+        1. 「Manage app」→「Settings」→「Secrets」を開く
+        2. 以下の形式で設定：
+        
+        **OpenAIの場合：**
+        ```toml
+        OPENAI_API_KEY = "your-api-key"
+        AI_PROVIDER = "openai"
+        ```
+        
+        **Google Geminiの場合：**
+        ```toml
+        GOOGLE_API_KEY = "your-api-key"
+        AI_PROVIDER = "gemini"
+        ```
+        """)
     else:
-        api_key = st.text_input("Google Gemini APIキー", type="password",
-                               help="https://makersuite.google.com/app/apikey で取得できます")
-        if st.button("APIキーを設定"):
-            if api_key:
-                try:
-                    set_api_key(api_key, provider)
-                    st.session_state.api_key_set = True
-                    st.session_state.api_provider = provider
-                    st.success("✅ APIキーが設定されました")
-                except Exception as e:
-                    st.error(f"エラー: {str(e)}")
-            else:
-                st.warning("APIキーを入力してください")
+        st.info("AI採点機能を使用するには、OpenAIまたはGoogle GeminiのAPIキーが必要です。")
+        st.markdown("---")
+        st.markdown("### 方法1: アプリ内で設定（一時的）")
+        st.warning("⚠️ ブラウザを閉じると消えます")
+        
+        provider = st.selectbox("AIプロバイダーを選択", ["openai", "gemini"])
+        
+        if provider == "openai":
+            api_key = st.text_input("OpenAI APIキー", type="password", 
+                                   help="https://platform.openai.com/api-keys で取得できます")
+            if st.button("APIキーを設定"):
+                if api_key:
+                    try:
+                        set_api_key(api_key, provider)
+                        st.session_state.api_key_set = True
+                        st.session_state.api_provider = provider
+                        st.success("✅ APIキーが設定されました（ブラウザを閉じると消えます）")
+                    except Exception as e:
+                        st.error(f"エラー: {str(e)}")
+                else:
+                    st.warning("APIキーを入力してください")
+        else:
+            api_key = st.text_input("Google Gemini APIキー", type="password",
+                                   help="https://makersuite.google.com/app/apikey で取得できます")
+            if st.button("APIキーを設定"):
+                if api_key:
+                    try:
+                        set_api_key(api_key, provider)
+                        st.session_state.api_key_set = True
+                        st.session_state.api_provider = provider
+                        st.success("✅ APIキーが設定されました（ブラウザを閉じると消えます）")
+                    except Exception as e:
+                        st.error(f"エラー: {str(e)}")
+                else:
+                    st.warning("APIキーを入力してください")
+        
+        st.markdown("---")
+        st.markdown("### 方法2: Streamlit Cloud Secretsで設定（推奨・永続的）")
+        st.markdown("""
+        Streamlit Cloudのダッシュボードで：
+        1. 「Manage app」→「Settings」→「Secrets」を開く
+        2. 以下の形式で設定：
+        
+        **OpenAIの場合：**
+        ```toml
+        OPENAI_API_KEY = "your-api-key"
+        AI_PROVIDER = "openai"
+        ```
+        
+        **Google Geminiの場合：**
+        ```toml
+        GOOGLE_API_KEY = "your-api-key"
+        AI_PROVIDER = "gemini"
+        ```
+        
+        3. 「Save」をクリック
+        
+        **メリット：**
+        - 一度設定すれば、ブラウザを閉じても保持されます
+        - セキュアに暗号化されて保存されます
+        """)
     
     # APIキーの状態確認
+    st.markdown("---")
     if is_api_configured():
         st.success("✅ APIキーが設定されています")
     else:
         st.warning("⚠️ APIキーが設定されていません。上記で設定してください。")
-    
-    st.markdown("---")
-    st.markdown("### 注意事項")
-    st.markdown("- APIキーはブラウザを閉じるまで有効です")
-    st.markdown("- APIキーはセキュアに管理してください")
-    st.markdown("- Streamlit Cloudにデプロイする場合は、環境変数として設定することもできます")
 
 # ダッシュボード
 if page == "🏠 ダッシュボード":
