@@ -307,8 +307,14 @@ elif page == "📊 採点結果":
         
         # 結果一覧
         for idx, result in enumerate(filtered_results):
-            result_id = result.get('id', f'result_{idx}')
-            with st.expander(f"{result.get('school_name', '不明')} - {result.get('theme_title', '不明')} (スコア: {result.get('total_score', 0)}/60)", key=f"expander_{result_id}"):
+            result_id = result.get('id')
+            if result_id is None:
+                result_id = f'result_{idx}'
+            else:
+                result_id = str(result_id)
+            
+            expander_key = f"expander_{result_id}_{idx}"
+            with st.expander(f"{result.get('school_name', '不明')} - {result.get('theme_title', '不明')} (スコア: {result.get('total_score', 0)}/60)", key=expander_key):
                 # 詳細情報
                 col1, col2 = st.columns(2)
                 with col1:
@@ -319,13 +325,14 @@ elif page == "📊 採点結果":
                     st.write(f"**ステータス:** {result.get('evaluation_status', '不明')}")
                 
                 # 評価詳細
-                details = get_evaluation_details(result['id'])
+                details = get_evaluation_details(result.get('id'))
                 if details:
                     st.subheader("評価項目別スコア")
                     
                     # レーダーチャート
                     fig = create_radar_chart(details)
-                    st.plotly_chart(fig, use_container_width=True, key=f"radar_chart_{result_id}")
+                    chart_key = f"radar_chart_{result_id}_{idx}"
+                    st.plotly_chart(fig, use_container_width=True, key=chart_key)
                     
                     # 詳細テーブル
                     detail_data = []
