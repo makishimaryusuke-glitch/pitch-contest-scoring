@@ -190,9 +190,9 @@ if page == "🏠 ダッシュボード":
 elif page == "📝 採点ワークフロー":
     st.title("📝 採点ワークフロー")
     
-    # セッション状態で最新の採点結果IDを保持
-    if 'latest_result_id' not in st.session_state:
-        st.session_state.latest_result_id = None
+    # セッション状態で前回選択した参加校を追跡
+    if 'previous_school_id' not in st.session_state:
+        st.session_state.previous_school_id = None
     
     # 1. 参加校の選択
     st.subheader("1. 参加校を選択")
@@ -204,6 +204,18 @@ elif page == "📝 採点ワークフロー":
     school_options = {f"{s['name']} ({s.get('prefecture', '')})": s['id'] for s in schools}
     selected_school = st.selectbox("参加校を選択", list(school_options.keys()), key="workflow_school_select")
     school_id = school_options[selected_school]
+    
+    # 参加校が変更されたらフォームをクリア
+    if st.session_state.previous_school_id is not None and st.session_state.previous_school_id != school_id:
+        # フォームのキーをクリアするために、セッション状態をリセット
+        if 'workflow_theme_title' in st.session_state:
+            del st.session_state.workflow_theme_title
+        if 'workflow_theme_description' in st.session_state:
+            del st.session_state.workflow_theme_description
+        if 'workflow_upload_files' in st.session_state:
+            del st.session_state.workflow_upload_files
+    
+    st.session_state.previous_school_id = school_id
     
     st.divider()
     
@@ -311,102 +323,20 @@ elif page == "📝 採点ワークフロー":
                         progress_bar.empty()
                         status_text.empty()
                         
-                        # セッション状態に結果IDを保存
-                        st.session_state.latest_result_id = result_id
                         st.success(f"採点が完了しました！総合スコア: {total_score}/60")
+                        st.info("採点結果は「🏫 参加校管理」ページのデータ一覧で確認できます。")
+                        # フォームをクリア
+                        if 'workflow_theme_title' in st.session_state:
+                            del st.session_state.workflow_theme_title
+                        if 'workflow_theme_description' in st.session_state:
+                            del st.session_state.workflow_theme_description
+                        if 'workflow_upload_files' in st.session_state:
+                            del st.session_state.workflow_upload_files
                         st.rerun()
                 except Exception as e:
                     st.error(f"エラーが発生しました: {str(e)}")
                     import traceback
                     st.code(traceback.format_exc())
-    
-    st.divider()
-    
-    # 4. 採点結果の表示
-    st.subheader("4. 採点結果")
-    
-    # 最新の結果を表示
-    if st.session_state.latest_result_id:
-        result = None
-        all_results = get_all_evaluation_results()
-        for r in all_results:
-            if r.get('id') == st.session_state.latest_result_id:
-                result = r
-                break
-        
-        if result and result.get('evaluation_status') == 'completed':
-            st.success(f"✅ 採点完了: {result.get('school_name', '不明')} - {result.get('theme_title', '不明')} (スコア: {result.get('total_score', 0)}/60)")
-            
-            # 詳細情報
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write(f"**評価日時:** {result.get('evaluated_at', '未設定')}")
-                st.write(f"**AIモデル:** {result.get('ai_model', '未設定')}")
-            with col2:
-                st.write(f"**総合スコア:** {result.get('total_score', 0)}/60")
-                st.write(f"**ステータス:** {result.get('evaluation_status', '不明')}")
-            
-            # 評価詳細
-            details = get_evaluation_details(result.get('id'))
-            if details:
-                st.subheader("評価項目別スコア")
-                
-                # レーダーチャート
-                fig = create_radar_chart(details)
-                st.plotly_chart(fig, width='stretch', key="workflow_radar_chart")
-                
-                # 詳細テーブル
-                detail_data = []
-                for detail in details:
-                    detail_data.append({
-                        "評価項目": detail.get("criterion_name", "不明"),
-                        "スコア": f"{detail.get('score', 0)}/10",
-                        "評価理由": detail.get("evaluation_reason", "")
-                    })
-                st.dataframe(pd.DataFrame(detail_data), width='stretch')
-        else:
-            st.info("まだ採点結果がありません。上記の手順で採点を実行してください。")
-    else:
-        # すべての結果を表示
-        results = get_all_evaluation_results()
-        completed_results = [r for r in results if r["evaluation_status"] == "completed"]
-        
-        if not completed_results:
-            st.info("まだ採点結果がありません。上記の手順で採点を実行してください。")
-        else:
-            # 最新の結果を最初に表示
-            latest_result = completed_results[-1] if completed_results else None
-            
-            if latest_result:
-                st.write(f"**最新の採点結果:** {latest_result.get('school_name', '不明')} - {latest_result.get('theme_title', '不明')} (スコア: {latest_result.get('total_score', 0)}/60)")
-                
-                # 詳細情報
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write(f"**評価日時:** {latest_result.get('evaluated_at', '未設定')}")
-                    st.write(f"**AIモデル:** {latest_result.get('ai_model', '未設定')}")
-                with col2:
-                    st.write(f"**総合スコア:** {latest_result.get('total_score', 0)}/60")
-                    st.write(f"**ステータス:** {latest_result.get('evaluation_status', '不明')}")
-                
-                # 評価詳細
-                details = get_evaluation_details(latest_result.get('id'))
-                if details:
-                    st.subheader("評価項目別スコア")
-                    
-                    # レーダーチャート
-                    fig = create_radar_chart(details)
-                    st.plotly_chart(fig, width='stretch', key="workflow_radar_chart_latest")
-                    
-                    # 詳細テーブル
-                    detail_data = []
-                    for detail in details:
-                        detail_data.append({
-                            "評価項目": detail.get("criterion_name", "不明"),
-                            "スコア": f"{detail.get('score', 0)}/10",
-                            "評価理由": detail.get("evaluation_reason", "")
-                        })
-                    st.dataframe(pd.DataFrame(detail_data), width='stretch')
 
 # 参加校管理
 elif page == "🏫 参加校管理":
@@ -434,41 +364,89 @@ elif page == "🏫 参加校管理":
     if schools:
         # データ一覧
         st.subheader("データ一覧")
+        
+        # 採点結果を取得して参加校に紐付ける
+        submissions = get_all_submissions()
+        results = get_all_evaluation_results()
+        completed_results = [r for r in results if r["evaluation_status"] == "completed"]
+        criteria = get_all_criteria()
+        
+        # 参加校ごとの最新の採点結果を取得
+        school_results = {}
+        for result in completed_results:
+            submission_id = result.get('submission_id')
+            if submission_id:
+                submission = next((s for s in submissions if s['id'] == submission_id), None)
+                if submission:
+                    school_id = submission.get('school_id')
+                    if school_id:
+                        # 最新の結果を保持（日付順）
+                        if school_id not in school_results:
+                            school_results[school_id] = result
+                        else:
+                            # より新しい結果があれば更新
+                            current_date = school_results[school_id].get('evaluated_at', '')
+                            new_date = result.get('evaluated_at', '')
+                            if new_date > current_date:
+                                school_results[school_id] = result
+        
+        # データフレームに採点結果の列を追加
         df = pd.DataFrame(schools)
         
-        # テーブルヘッダー
-        if not df.empty:
-            # カラム名を取得
-            columns = list(df.columns)
-            # ヘッダー行を作成
-            header_cols = st.columns(len(columns) + 1)  # +1は削除ボタン用
-            for idx, col_name in enumerate(columns):
-                with header_cols[idx]:
-                    st.markdown(f"**{col_name}**")
-            with header_cols[-1]:
-                st.markdown("**操作**")
-            
-            # ヘッダーとデータの間に区切り線
-            st.markdown("---")
-            
-            # データ行を表示
-            for row_idx, row in df.iterrows():
-                row_cols = st.columns(len(columns) + 1)  # +1は削除ボタン用
-                for col_idx, col_name in enumerate(columns):
-                    with row_cols[col_idx]:
-                        st.write(str(row[col_name]) if pd.notna(row[col_name]) else "")
+        # 各評価項目のスコア列を追加
+        for criterion in criteria:
+            criterion_name = criterion['criterion_name']
+            df[criterion_name] = None
+        
+        # 総合スコア列を追加
+        df['総合スコア'] = None
+        
+        # 各参加校の採点結果を設定
+        for idx, school in enumerate(schools):
+            school_id = school.get('id')
+            if school_id in school_results:
+                result = school_results[school_id]
+                details = get_evaluation_details(result.get('id'))
                 
-                # 削除ボタン
-                with row_cols[-1]:
-                    school_id = row.get('id')
-                    if school_id is not None:
+                # 各評価項目のスコアを設定
+                for detail in details:
+                    criterion_id = detail.get('criterion_id')
+                    criterion = next((c for c in criteria if c['id'] == criterion_id), None)
+                    if criterion:
+                        criterion_name = criterion['criterion_name']
+                        score = detail.get('score', 0)
+                        df.at[idx, criterion_name] = f"{score}/10"
+                
+                # 総合スコアを設定
+                df.at[idx, '総合スコア'] = f"{result.get('total_score', 0)}/60"
+        
+        # テーブル表示（列数が多い場合はst.dataframeを使用）
+        if not df.empty:
+            # 操作列を追加
+            df_display = df.copy()
+            df_display['操作'] = ''
+            
+            # データフレームを表示
+            st.dataframe(df_display, width='stretch', use_container_width=True)
+            
+            # 削除ボタンを各行に追加
+            st.markdown("### 操作")
+            for row_idx, row in df.iterrows():
+                school_id = row.get('id')
+                school_name = row.get('name', '不明')
+                if school_id is not None:
+                    col1, col2 = st.columns([1, 10])
+                    with col1:
                         delete_key = f"delete_school_table_{school_id}_{row_idx}"
                         if st.button("🗑️ 削除", key=delete_key, type="secondary"):
                             if delete_school(school_id):
-                                st.success("参加校を削除しました")
+                                st.success(f"{school_name}を削除しました")
                                 st.rerun()
                             else:
                                 st.error("削除に失敗しました")
+                    with col2:
+                        st.write(f"**{school_name}**")
+                    st.divider()
         else:
             st.dataframe(df, width='stretch')
     else:
