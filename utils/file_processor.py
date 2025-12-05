@@ -82,3 +82,5 @@ def get_file_type(file_path: Path) -> str:
     }
     return type_map.get(suffix, 'Unknown')
 
+
+

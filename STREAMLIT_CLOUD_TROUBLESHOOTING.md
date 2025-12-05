@@ -93,3 +93,5 @@ openpyxl>=3.1.2
 - **python-pptx**: `python-pptx`が正しいパッケージ名（`pptx`ではない）
 - **google-generativeai**: 最新版を使用（`>=0.3.0`）
 
+
+
