@@ -30,11 +30,36 @@ if 'api_key_set' not in st.session_state:
 if 'api_provider' not in st.session_state:
     st.session_state.api_provider = "openai"
 
-# ナビゲーション
-page = st.sidebar.selectbox(
+# ページナビゲーション（セッション状態で管理）
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "🏠 ダッシュボード"  # デフォルトページ
+
+# サイドバーにメニューバーを作成
+st.sidebar.title("📋 メニュー")
+
+# メニューオプション
+pages = [
+    "🏠 ダッシュボード",
+    "⚙️ API設定",
+    "📝 採点ワークフロー",
+    "🏫 参加校管理"
+]
+
+# radioボタンでページ選択（選択状態が視覚的に分かる）
+selected_page = st.sidebar.radio(
     "ページを選択",
-    ["⚙️ API設定", "🏠 ダッシュボード", "📝 採点ワークフロー", "🏫 参加校管理"]
+    pages,
+    index=pages.index(st.session_state.current_page) if st.session_state.current_page in pages else 0,
+    label_visibility="collapsed"
 )
+
+# ページが変更されたらセッション状態を更新
+if selected_page != st.session_state.current_page:
+    st.session_state.current_page = selected_page
+    st.rerun()
+
+# 現在のページを取得
+page = st.session_state.current_page
 
 # API設定ページ
 if page == "⚙️ API設定":
