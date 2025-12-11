@@ -118,3 +118,4 @@ def format_awards_display(awards: List[str]) -> str:
         return ""
     return " / ".join(awards)
 
+

@@ -84,3 +84,4 @@ def ensure_data_directory():
     if not FILES_FILE.exists():
         save_json(FILES_FILE, [])
 
+

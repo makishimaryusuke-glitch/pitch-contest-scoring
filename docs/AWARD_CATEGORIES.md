@@ -242,3 +242,4 @@ def determine_awards(results):
 3. システムに実装（自動判定機能）
 4. 審査員と共有して運用開始
 
+
