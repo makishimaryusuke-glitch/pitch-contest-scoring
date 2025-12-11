@@ -12,10 +12,14 @@ from utils.file_processor import *
 from utils.ai_scoring import *
 from utils.visualization import *
 from utils.award_manager import determine_awards, format_awards_display
+from utils.data_persistence_helper import ensure_data_directory, show_data_persistence_info, check_data_persistence
 import pandas as pd
 
 # 環境変数からAPIキーを初期化（Streamlit Cloud用）
 initialize_from_env()
+
+# データディレクトリの初期化（永続化のため）
+ensure_data_directory()
 
 # ページ設定
 st.set_page_config(
@@ -197,6 +201,10 @@ if page == "🏠 ダッシュボード":
     with col4:
         avg_score = sum(r["total_score"] for r in completed_results) / len(completed_results) if completed_results else 0
         st.metric("平均スコア", f"{avg_score:.1f}/60")
+    
+    # データ永続化の状態を表示（折りたたみ可能）
+    with st.expander("📁 データ永続化の状態", expanded=False):
+        show_data_persistence_info()
     
     # ランキング表示（総合スコア順）
     st.subheader("🏆 採点結果ランキング")

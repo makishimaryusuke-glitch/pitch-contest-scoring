@@ -29,9 +29,28 @@ def load_json(file_path: Path, default: List = None) -> List[Dict[str, Any]]:
     return default if default is not None else []
 
 def save_json(file_path: Path, data: List[Dict[str, Any]]):
-    """JSONファイルに保存"""
-    with open(file_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    """JSONファイルに保存（永続化）"""
+    try:
+        # ディレクトリが存在しない場合は作成
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # 一時ファイルに書き込んでからリネーム（アトミック書き込み）
+        temp_file = file_path.with_suffix('.json.tmp')
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        # 一時ファイルをリネーム（アトミック操作）
+        temp_file.replace(file_path)
+        
+        # ファイルが正しく保存されたか確認
+        if not file_path.exists():
+            raise IOError(f"ファイルの保存に失敗しました: {file_path}")
+            
+    except Exception as e:
+        # エラーが発生した場合はログに記録
+        import logging
+        logging.error(f"データの保存に失敗しました: {e}")
+        raise
 
 def get_next_id(data_list: List[Dict[str, Any]]) -> int:
     """次のIDを取得"""
