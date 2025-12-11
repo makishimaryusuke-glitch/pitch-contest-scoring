@@ -11,6 +11,7 @@ from utils.data_manager import *
 from utils.file_processor import *
 from utils.ai_scoring import *
 from utils.visualization import *
+from utils.award_manager import determine_awards, format_awards_display
 import pandas as pd
 
 # 環境変数からAPIキーを初期化（Streamlit Cloud用）
@@ -197,17 +198,55 @@ if page == "🏠 ダッシュボード":
         avg_score = sum(r["total_score"] for r in completed_results) / len(completed_results) if completed_results else 0
         st.metric("平均スコア", f"{avg_score:.1f}/60")
     
-    # 最近の採点結果
-    st.subheader("最近の採点結果")
+    # ランキング表示（総合スコア順）
+    st.subheader("🏆 採点結果ランキング")
     if completed_results:
-        # 日付順にソート（新しい順）
+        # 総合スコアでソート（高い順）
         sorted_results = sorted(completed_results, 
-                               key=lambda x: x.get('evaluated_at', '') or '', 
-                               reverse=True)[:10]
-        df = pd.DataFrame(sorted_results)
-        display_cols = ["school_name", "theme_title", "total_score", "evaluated_at"]
-        available_cols = [col for col in display_cols if col in df.columns]
-        st.dataframe(df[available_cols], width='stretch')
+                               key=lambda x: x.get('total_score', 0), 
+                               reverse=True)
+        
+        # 賞を判定
+        awards_dict = determine_awards(completed_results)
+        
+        # ランキングデータを作成
+        ranking_data = []
+        for rank, result in enumerate(sorted_results, 1):
+            result_id = result.get('id')
+            school_name = result.get('school_name', '不明')
+            theme_title = result.get('theme_title', '不明')
+            total_score = result.get('total_score', 0)
+            
+            # 賞を取得
+            awards = awards_dict.get(result_id, [])
+            awards_text = format_awards_display(awards)
+            
+            # 校名と賞を結合
+            school_with_award = school_name
+            if awards_text:
+                school_with_award = f"{school_name} {awards_text}"
+            
+            ranking_data.append({
+                "順位": rank,
+                "参加校": school_with_award,
+                "テーマ": theme_title,
+                "総合スコア": f"{total_score}/60"
+            })
+        
+        # ランキングテーブルを表示
+        df_ranking = pd.DataFrame(ranking_data)
+        st.dataframe(df_ranking, width='stretch', use_container_width=True, hide_index=True)
+        
+        # 賞の説明
+        st.markdown("---")
+        st.markdown("### 賞の説明")
+        st.markdown("""
+        - 🏆 **最優秀賞**: 総合スコア1位
+        - 🥇 **優秀賞**: 総合スコア2-3位
+        - 🥈 **敢闘賞**: 総合スコア4-5位
+        - 🥉 **奨励賞**: 総合スコア6位以下
+        - 💡 **独創性賞**: 着眼点の独創性で最高得点を獲得
+        """)
     else:
         st.info("まだ採点結果がありません")
 
