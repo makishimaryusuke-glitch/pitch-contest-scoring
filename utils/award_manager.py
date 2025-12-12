@@ -53,31 +53,6 @@ def determine_awards(results: List[Dict[str, Any]]) -> Dict[int, List[str]]:
         if award_list:
             awards[result_id] = award_list
     
-    # 評価項目ベースの賞の判定
-    criteria = get_all_criteria()
-    
-    # 着眼点の独創性（評価項目ID: 1）で最高得点を獲得した作品
-    creativity_scores = []
-    for result in completed_results:
-        details = get_evaluation_details(result.get('id'))
-        for detail in details:
-            if detail.get('criterion_id') == 1:  # 着眼点の独創性
-                creativity_scores.append({
-                    'result_id': result.get('id'),
-                    'score': detail.get('score', 0)
-                })
-                break
-    
-    if creativity_scores:
-        max_creativity_score = max(s['score'] for s in creativity_scores)
-        creativity_winners = [s['result_id'] for s in creativity_scores 
-                            if s['score'] == max_creativity_score]
-        
-        for result_id in creativity_winners:
-            if result_id not in awards:
-                awards[result_id] = []
-            awards[result_id].append("💡 独創性賞")
-    
     return awards
 
 
