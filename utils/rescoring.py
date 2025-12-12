@@ -8,7 +8,8 @@
 from pathlib import Path
 from utils.data_manager import (
     get_submission, get_files_by_submission, create_evaluation_result,
-    create_evaluation_detail, update_evaluation_result, get_all_criteria
+    create_evaluation_detail, update_evaluation_result, get_all_criteria,
+    get_all_evaluation_results, delete_evaluation_details
 )
 from utils.file_processor import extract_text_from_file
 from utils.ai_scoring import evaluate_criterion, is_api_configured
@@ -16,7 +17,7 @@ from utils.ai_scoring import evaluate_criterion, is_api_configured
 
 def rescore_submission(submission_id: int) -> dict:
     """
-    提出資料を再採点する
+    提出資料を再採点する（既存の採点結果を上書き）
     
     Args:
         submission_id: 提出資料ID
@@ -65,10 +66,30 @@ def rescore_submission(submission_id: int) -> dict:
                 "error": "テキストを抽出できませんでした"
             }
         
-        # 採点結果を作成
-        result_id = create_evaluation_result(submission_id,
-                                            evaluated_by=None,
-                                            ai_model="gpt-4")
+        # 既存の採点結果を取得（最新のもの）
+        all_results = get_all_evaluation_results()
+        existing_results = [
+            r for r in all_results 
+            if r.get('submission_id') == submission_id 
+            and r.get('evaluation_status') == 'completed'
+        ]
+        
+        if existing_results:
+            # 既存の結果がある場合は上書き
+            # 最新の結果を取得（日付順）
+            latest_result = max(
+                existing_results,
+                key=lambda x: x.get('evaluated_at', '') or ''
+            )
+            result_id = latest_result.get('id')
+            
+            # 既存の評価詳細を削除
+            delete_evaluation_details(result_id)
+        else:
+            # 既存の結果がない場合は新規作成
+            result_id = create_evaluation_result(submission_id,
+                                                evaluated_by=None,
+                                                ai_model="gpt-4")
         
         # 各評価項目について採点
         criteria = get_all_criteria()
@@ -94,7 +115,8 @@ def rescore_submission(submission_id: int) -> dict:
         return {
             "success": True,
             "result_id": result_id,
-            "total_score": total_score
+            "total_score": total_score,
+            "overwritten": len(existing_results) > 0
         }
     
     except Exception as e:
