@@ -50,14 +50,6 @@ def determine_awards(results: List[Dict[str, Any]]) -> Dict[int, List[str]]:
         elif idx in [1, 2]:
             award_list.append("🥇 優秀賞")
         
-        # 敢闘賞（4-5位）
-        elif idx in [3, 4]:
-            award_list.append("🥈 敢闘賞")
-        
-        # 奨励賞（6位以下）
-        elif idx >= 5:
-            award_list.append("🥉 奨励賞")
-        
         if award_list:
             awards[result_id] = award_list
     

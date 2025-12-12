@@ -251,8 +251,6 @@ if page == "🏠 ダッシュボード":
         st.markdown("""
         - 🏆 **最優秀賞**: 総合スコア1位
         - 🥇 **優秀賞**: 総合スコア2-3位
-        - 🥈 **敢闘賞**: 総合スコア4-5位
-        - 🥉 **奨励賞**: 総合スコア6位以下
         - 💡 **独創性賞**: 着眼点の独創性で最高得点を獲得
         """)
     else:
@@ -480,14 +478,19 @@ elif page == "🏫 参加校管理":
                 result = school_results[school_id]
                 details = get_evaluation_details(result.get('id'))
                 
-                # 各評価項目のスコアを設定
+                # 各評価項目のスコアと評価理由を設定
                 for detail in details:
                     criterion_id = detail.get('criterion_id')
                     criterion = next((c for c in criteria if c['id'] == criterion_id), None)
                     if criterion:
                         criterion_name = criterion['criterion_name']
                         score = detail.get('score', 0)
-                        df.at[idx, criterion_name] = f"{score}/10"
+                        reason = detail.get('evaluation_reason', '')
+                        # スコアと評価理由を結合
+                        if reason:
+                            df.at[idx, criterion_name] = f"{score}/10\n\n{reason}"
+                        else:
+                            df.at[idx, criterion_name] = f"{score}/10"
                 
                 # 総合スコアを設定
                 df.at[idx, '総合スコア'] = f"{result.get('total_score', 0)}/60"
@@ -498,8 +501,9 @@ elif page == "🏫 参加校管理":
             df_display = df.copy()
             df_display['操作'] = ''
             
-            # データフレームを表示
-            st.dataframe(df_display, width='stretch', use_container_width=True)
+            # データフレームを表示（評価理由を含む）
+            # 評価理由が長い場合は、セル内で改行される
+            st.dataframe(df_display, width='stretch', use_container_width=True, height=400)
             
             # 削除ボタンを各行に追加
             st.markdown("### 操作")
