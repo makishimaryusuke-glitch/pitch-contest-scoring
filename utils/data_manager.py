@@ -169,6 +169,28 @@ def get_files_by_submission(submission_id: int) -> List[Dict[str, Any]]:
     files = load_json(FILES_FILE)
     return [f for f in files if f['submission_id'] == submission_id]
 
+def delete_files_by_submission(submission_id: int):
+    """提出資料に紐づくファイルを削除"""
+    files = load_json(FILES_FILE)
+    original_count = len(files)
+    files = [f for f in files if f['submission_id'] != submission_id]
+    if len(files) < original_count:
+        save_json(FILES_FILE, files)
+        return True
+    return False
+
+def update_submission(submission_id: int, theme_title: str, theme_description: Optional[str] = None):
+    """提出資料を更新"""
+    submissions = load_json(SUBMISSIONS_FILE)
+    for submission in submissions:
+        if submission['id'] == submission_id:
+            submission['theme_title'] = theme_title
+            if theme_description is not None:
+                submission['theme_description'] = theme_description
+            submission['updated_at'] = datetime.now().isoformat()
+            break
+    save_json(SUBMISSIONS_FILE, submissions)
+
 # ==================== Evaluation Results ====================
 
 def create_evaluation_result(submission_id: int, evaluated_by: Optional[int] = None,

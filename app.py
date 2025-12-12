@@ -260,6 +260,12 @@ if page == "🏠 ダッシュボード":
 elif page == "📝 採点ワークフロー":
     st.title("📝 採点ワークフロー")
     
+    # 再採点モードの確認
+    is_rescore_mode = 'rescore_school_id' in st.session_state and st.session_state.rescore_school_id is not None
+    
+    if is_rescore_mode:
+        st.info("🔄 再採点モード: ファイルを再アップロードして採点を実行してください。")
+    
     # セッション状態で前回選択した参加校を追跡
     if 'previous_school_id' not in st.session_state:
         st.session_state.previous_school_id = None
@@ -272,11 +278,34 @@ elif page == "📝 採点ワークフロー":
         st.stop()
     
     school_options = {f"{s['name']} ({s.get('prefecture', '')})": s['id'] for s in schools}
-    selected_school = st.selectbox("参加校を選択", list(school_options.keys()), key="workflow_school_select")
+    
+    # 再採点モードの場合は、対象の参加校を自動選択
+    if is_rescore_mode:
+        rescore_school_id = st.session_state.rescore_school_id
+        # 参加校名を取得
+        rescore_school = next((s for s in schools if s['id'] == rescore_school_id), None)
+        if rescore_school:
+            default_school = f"{rescore_school['name']} ({rescore_school.get('prefecture', '')})"
+            selected_school = st.selectbox(
+                "参加校を選択", 
+                list(school_options.keys()), 
+                index=list(school_options.keys()).index(default_school) if default_school in school_options else 0,
+                key="workflow_school_select"
+            )
+        else:
+            selected_school = st.selectbox("参加校を選択", list(school_options.keys()), key="workflow_school_select")
+    else:
+        selected_school = st.selectbox("参加校を選択", list(school_options.keys()), key="workflow_school_select")
+    
     school_id = school_options[selected_school]
     
-    # 参加校が変更されたらフォームをクリア
-    if st.session_state.previous_school_id is not None and st.session_state.previous_school_id != school_id:
+    # 再採点モードの場合、既存の提出資料情報を取得
+    existing_submission = None
+    if is_rescore_mode and 'rescore_submission_id' in st.session_state:
+        existing_submission = get_submission(st.session_state.rescore_submission_id)
+    
+    # 参加校が変更されたらフォームをクリア（再採点モードでない場合）
+    if not is_rescore_mode and st.session_state.previous_school_id is not None and st.session_state.previous_school_id != school_id:
         # フォームのキーをクリアするために、セッション状態をリセット
         if 'workflow_theme_title' in st.session_state:
             del st.session_state.workflow_theme_title
@@ -284,6 +313,13 @@ elif page == "📝 採点ワークフロー":
             del st.session_state.workflow_theme_description
         if 'workflow_upload_files' in st.session_state:
             del st.session_state.workflow_upload_files
+    
+    # 再採点モードの場合、既存のテーマ情報を事前入力
+    if is_rescore_mode and existing_submission:
+        if 'workflow_theme_title' not in st.session_state:
+            st.session_state.workflow_theme_title = existing_submission.get('theme_title', '')
+        if 'workflow_theme_description' not in st.session_state:
+            st.session_state.workflow_theme_description = existing_submission.get('theme_description', '')
     
     st.session_state.previous_school_id = school_id
     
@@ -322,12 +358,36 @@ elif page == "📝 採点ワークフロー":
         else:
             with st.spinner("採点を実行中..."):
                 try:
-                    # 提出資料を作成
-                    submission_id = create_submission(school_id, theme_title, theme_description)
-                    
-                    # ファイルを保存
-                    upload_dir = Path("uploads") / str(submission_id)
-                    upload_dir.mkdir(parents=True, exist_ok=True)
+                    # 再採点モードの場合
+                    if is_rescore_mode and 'rescore_submission_id' in st.session_state:
+                        submission_id = st.session_state.rescore_submission_id
+                        
+                        # 提出資料を更新
+                        update_submission(submission_id, theme_title, theme_description)
+                        
+                        # 既存のファイルを削除（物理ファイルも削除）
+                        existing_files = get_files_by_submission(submission_id)
+                        for file_info in existing_files:
+                            file_path = Path(file_info['file_path'])
+                            if file_path.exists():
+                                try:
+                                    file_path.unlink()
+                                except Exception as e:
+                                    pass  # ファイル削除に失敗しても続行
+                        
+                        # ファイル情報を削除
+                        delete_files_by_submission(submission_id)
+                        
+                        # 新しいファイルを保存
+                        upload_dir = Path("uploads") / str(submission_id)
+                        upload_dir.mkdir(parents=True, exist_ok=True)
+                    else:
+                        # 新規提出資料を作成
+                        submission_id = create_submission(school_id, theme_title, theme_description)
+                        
+                        # ファイルを保存
+                        upload_dir = Path("uploads") / str(submission_id)
+                        upload_dir.mkdir(parents=True, exist_ok=True)
                     
                     files = []
                     for uploaded_file in uploaded_files:
@@ -358,10 +418,36 @@ elif page == "📝 採点ワークフロー":
                     if not all_text.strip():
                         st.error("テキストを抽出できませんでした")
                     else:
-                        # 採点結果を作成
-                        result_id = create_evaluation_result(submission_id,
-                                                            evaluated_by=None,
-                                                            ai_model="gpt-4")
+                        # 再採点モードの場合、既存の採点結果を取得
+                        result_id = None
+                        if is_rescore_mode:
+                            all_results = get_all_evaluation_results()
+                            existing_results = [
+                                r for r in all_results 
+                                if r.get('submission_id') == submission_id 
+                                and r.get('evaluation_status') == 'completed'
+                            ]
+                            
+                            if existing_results:
+                                # 既存の結果がある場合は上書き
+                                latest_result = max(
+                                    existing_results,
+                                    key=lambda x: x.get('evaluated_at', '') or ''
+                                )
+                                result_id = latest_result.get('id')
+                                
+                                # 既存の評価詳細を削除
+                                delete_evaluation_details(result_id)
+                            else:
+                                # 既存の結果がない場合は新規作成
+                                result_id = create_evaluation_result(submission_id,
+                                                                    evaluated_by=None,
+                                                                    ai_model="gpt-4")
+                        else:
+                            # 新規採点の場合は新規作成
+                            result_id = create_evaluation_result(submission_id,
+                                                                evaluated_by=None,
+                                                                ai_model="gpt-4")
                         
                         # 各評価項目について採点
                         criteria = get_all_criteria()
@@ -393,8 +479,19 @@ elif page == "📝 採点ワークフロー":
                         progress_bar.empty()
                         status_text.empty()
                         
-                        st.success(f"採点が完了しました！総合スコア: {total_score}/60")
+                        if is_rescore_mode:
+                            st.success(f"再採点が完了しました！総合スコア: {total_score}/60")
+                        else:
+                            st.success(f"採点が完了しました！総合スコア: {total_score}/60")
                         st.info("採点結果は「🏫 参加校管理」ページのデータ一覧で確認できます。")
+                        
+                        # 再採点モードのセッション状態をクリア
+                        if is_rescore_mode:
+                            if 'rescore_school_id' in st.session_state:
+                                del st.session_state.rescore_school_id
+                            if 'rescore_submission_id' in st.session_state:
+                                del st.session_state.rescore_submission_id
+                        
                         # フォームをクリア
                         if 'workflow_theme_title' in st.session_state:
                             del st.session_state.workflow_theme_title
@@ -531,18 +628,12 @@ elif page == "🏫 参加校管理":
                             submission_id = school_submissions[school_id]
                             rescore_key = f"rescore_school_{school_id}_{row_idx}"
                             if st.button("🔄 再採点", key=rescore_key, type="primary"):
-                                if not is_api_configured():
-                                    st.error("APIキーが設定されていません。「⚙️ API設定」ページでAPIキーを設定してください。")
-                                else:
-                                    with st.spinner(f"{school_name}の再採点を実行中..."):
-                                        result = rescore_submission(submission_id)
-                                        if result.get("success"):
-                                            total_score = result.get("total_score", 0)
-                                            st.success(f"再採点が完了しました！総合スコア: {total_score}/60")
-                                            st.rerun()
-                                        else:
-                                            error_msg = result.get("error", "不明なエラー")
-                                            st.error(f"再採点に失敗しました: {error_msg}")
+                                # 再採点対象の情報をセッション状態に保存
+                                st.session_state.rescore_school_id = school_id
+                                st.session_state.rescore_submission_id = submission_id
+                                # 採点ワークフローのページに移動
+                                st.session_state.current_page = "📝 採点ワークフロー"
+                                st.rerun()
                     
                     with col2:
                         delete_key = f"delete_school_table_{school_id}_{row_idx}"
