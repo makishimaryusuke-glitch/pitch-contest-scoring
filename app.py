@@ -470,6 +470,9 @@ elif page == "🏫 参加校管理":
         # 総合スコア列を追加
         df['総合スコア'] = None
         
+        # 評価理由をまとめる列を追加（総合スコアの後）
+        df['採点根拠'] = None
+        
         # 各参加校の採点結果を設定
         for idx, school in enumerate(schools):
             school_id = school.get('id')
@@ -477,7 +480,8 @@ elif page == "🏫 参加校管理":
                 result = school_results[school_id]
                 details = get_evaluation_details(result.get('id'))
                 
-                # 各評価項目のスコアと評価理由を設定
+                # 各評価項目のスコアを設定
+                evaluation_reasons = []
                 for detail in details:
                     criterion_id = detail.get('criterion_id')
                     criterion = next((c for c in criteria if c['id'] == criterion_id), None)
@@ -485,23 +489,27 @@ elif page == "🏫 参加校管理":
                         criterion_name = criterion['criterion_name']
                         score = detail.get('score', 0)
                         reason = detail.get('evaluation_reason', '')
-                        # スコアと評価理由を結合
+                        df.at[idx, criterion_name] = f"{score}/10"
+                        
+                        # 評価理由を収集（採点根拠列用）
                         if reason:
-                            df.at[idx, criterion_name] = f"{score}/10\n\n{reason}"
-                        else:
-                            df.at[idx, criterion_name] = f"{score}/10"
+                            evaluation_reasons.append(f"**{criterion_name}**: {reason}")
                 
                 # 総合スコアを設定
                 df.at[idx, '総合スコア'] = f"{result.get('total_score', 0)}/60"
+                
+                # 採点根拠を設定（すべての評価理由をまとめる）
+                if evaluation_reasons:
+                    df.at[idx, '採点根拠'] = "\n\n".join(evaluation_reasons)
         
         # テーブル表示（列数が多い場合はst.dataframeを使用）
         if not df.empty:
-            # 操作列を追加
-            df_display = df.copy()
+            # 列の順序を調整（採点根拠を総合スコアの後に配置）
+            base_cols = [col for col in df.columns if col not in ['総合スコア', '採点根拠', '操作']]
+            df_display = df[base_cols + ['総合スコア', '採点根拠']].copy()
             df_display['操作'] = ''
             
-            # データフレームを表示（評価理由を含む）
-            # 評価理由が長い場合は、セル内で改行される
+            # データフレームを表示
             st.dataframe(df_display, width='stretch', use_container_width=True, height=400)
             
             # 削除ボタンを各行に追加
