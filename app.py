@@ -13,6 +13,7 @@ from utils.ai_scoring import *
 from utils.visualization import *
 from utils.award_manager import determine_awards, format_awards_display
 from utils.data_persistence_helper import ensure_data_directory, show_data_persistence_info, check_data_persistence
+from utils.rescoring import rescore_submission
 import pandas as pd
 
 # 環境変数からAPIキーを初期化（Streamlit Cloud用）
@@ -440,8 +441,9 @@ elif page == "🏫 参加校管理":
         completed_results = [r for r in results if r["evaluation_status"] == "completed"]
         criteria = get_all_criteria()
         
-        # 参加校ごとの最新の採点結果を取得
+        # 参加校ごとの最新の採点結果と提出資料IDを取得
         school_results = {}
+        school_submissions = {}  # 参加校ID -> 提出資料IDのマッピング
         for result in completed_results:
             submission_id = result.get('submission_id')
             if submission_id:
@@ -452,12 +454,14 @@ elif page == "🏫 参加校管理":
                         # 最新の結果を保持（日付順）
                         if school_id not in school_results:
                             school_results[school_id] = result
+                            school_submissions[school_id] = submission_id
                         else:
                             # より新しい結果があれば更新
                             current_date = school_results[school_id].get('evaluated_at', '')
                             new_date = result.get('evaluated_at', '')
                             if new_date > current_date:
                                 school_results[school_id] = result
+                                school_submissions[school_id] = submission_id
         
         # データフレームに採点結果の列を追加
         df = pd.DataFrame(schools)
@@ -512,14 +516,35 @@ elif page == "🏫 参加校管理":
             # データフレームを表示
             st.dataframe(df_display, width='stretch', use_container_width=True, height=400)
             
-            # 削除ボタンを各行に追加
+            # 操作ボタンを各行に追加
             st.markdown("### 操作")
             for row_idx, row in df.iterrows():
                 school_id = row.get('id')
                 school_name = row.get('name', '不明')
                 if school_id is not None:
-                    col1, col2 = st.columns([1, 10])
+                    # 再採点ボタンと削除ボタンを配置
+                    col1, col2, col3 = st.columns([1, 1, 8])
+                    
                     with col1:
+                        # 再採点ボタン（採点結果がある場合のみ表示）
+                        if school_id in school_submissions:
+                            submission_id = school_submissions[school_id]
+                            rescore_key = f"rescore_school_{school_id}_{row_idx}"
+                            if st.button("🔄 再採点", key=rescore_key, type="primary"):
+                                if not is_api_configured():
+                                    st.error("APIキーが設定されていません。「⚙️ API設定」ページでAPIキーを設定してください。")
+                                else:
+                                    with st.spinner(f"{school_name}の再採点を実行中..."):
+                                        result = rescore_submission(submission_id)
+                                        if result.get("success"):
+                                            total_score = result.get("total_score", 0)
+                                            st.success(f"再採点が完了しました！総合スコア: {total_score}/60")
+                                            st.rerun()
+                                        else:
+                                            error_msg = result.get("error", "不明なエラー")
+                                            st.error(f"再採点に失敗しました: {error_msg}")
+                    
+                    with col2:
                         delete_key = f"delete_school_table_{school_id}_{row_idx}"
                         if st.button("🗑️ 削除", key=delete_key, type="secondary"):
                             if delete_school(school_id):
@@ -527,7 +552,8 @@ elif page == "🏫 参加校管理":
                                 st.rerun()
                             else:
                                 st.error("削除に失敗しました")
-                    with col2:
+                    
+                    with col3:
                         st.write(f"**{school_name}**")
                     st.divider()
         else:
