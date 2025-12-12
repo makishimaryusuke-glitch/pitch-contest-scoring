@@ -268,6 +268,16 @@ def get_all_evaluation_results() -> List[Dict[str, Any]]:
     
     return results
 
+def delete_evaluation_details(result_id: int):
+    """採点結果詳細を削除（採点結果は残す）"""
+    details = load_json(EVALUATION_DETAILS_FILE)
+    original_count = len(details)
+    details = [d for d in details if d['evaluation_result_id'] != result_id]
+    if len(details) < original_count:
+        save_json(EVALUATION_DETAILS_FILE, details)
+        return True
+    return False
+
 def delete_evaluation_result(result_id: int) -> bool:
     """採点結果を削除（関連する詳細も削除）"""
     # 採点結果を削除
@@ -278,9 +288,7 @@ def delete_evaluation_result(result_id: int) -> bool:
         save_json(EVALUATION_RESULTS_FILE, results)
         
         # 関連する詳細も削除
-        details = load_json(EVALUATION_DETAILS_FILE)
-        details = [d for d in details if d['evaluation_result_id'] != result_id]
-        save_json(EVALUATION_DETAILS_FILE, details)
+        delete_evaluation_details(result_id)
         
         return True
     return False
