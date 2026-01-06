@@ -14,6 +14,7 @@ from utils.visualization import *
 from utils.award_manager import determine_awards, format_awards_display
 from utils.data_persistence_helper import ensure_data_directory, show_data_persistence_info, check_data_persistence
 from utils.rescoring import rescore_submission
+from utils.certificate_generator import generate_certificate_for_result
 import pandas as pd
 
 # 環境変数からAPIキーを初期化（Streamlit Cloud用）
@@ -204,16 +205,32 @@ if page == "🏠 ダッシュボード":
         st.metric("平均スコア", f"{avg_score:.1f}/60")
     
     # データ永続化の状態を表示（折りたたみ可能）
-    with st.expander("📁 データ永続化の状態", expanded=False):
-        show_data_persistence_info()
+    # 一時的にコメントアウト（削除ボタンの表示確認のため）
+    # with st.expander("📁 データ永続化の状態", expanded=False):
+    #     show_data_persistence_info()
     
     # ランキング表示（総合スコア順）
     st.subheader("🏆 採点結果ランキング")
+    
+    # デバッグ情報を表示
+    with st.expander("🔍 デバッグ情報", expanded=True):
+        st.write(f"completed_results数: {len(completed_results)}")
+        if completed_results:
+            st.write("最初のcompleted_resultの内容:")
+            st.json(completed_results[0])
+    
     if completed_results:
         # 総合スコアでソート（高い順）
         sorted_results = sorted(completed_results, 
                                key=lambda x: x.get('total_score', 0), 
                                reverse=True)
+        
+        # デバッグ情報
+        with st.expander("🔍 デバッグ情報（ソート後）", expanded=True):
+            st.write(f"sorted_results数: {len(sorted_results)}")
+            if sorted_results:
+                st.write("最初のsorted_resultの内容:")
+                st.json(sorted_results[0])
         
         # 賞を判定
         awards_dict = determine_awards(completed_results)
@@ -239,12 +256,116 @@ if page == "🏠 ダッシュボード":
                 "順位": rank,
                 "参加校": school_with_award,
                 "テーマ": theme_title,
-                "総合スコア": f"{total_score}/60"
+                "総合スコア": f"{total_score}/60",
+                "result_id": result_id if result_id is not None else 0  # 削除用にIDを保持
             })
         
-        # ランキングテーブルを表示
+        # ランキングテーブルを表示（result_idは非表示）
         df_ranking = pd.DataFrame(ranking_data)
-        st.dataframe(df_ranking, width='stretch', use_container_width=True, hide_index=True)
+        df_display = df_ranking[["順位", "参加校", "テーマ", "総合スコア"]].copy()
+        st.dataframe(df_display, width='stretch', use_container_width=True, hide_index=True)
+        
+        # 削除ボタンを各行に追加
+        st.markdown("---")
+        st.markdown("### 🗑️ 採点結果の削除")
+        
+        # デバッグ情報
+        st.write(f"**削除ボタン表示前の確認**: sorted_results数={len(sorted_results)}")
+        
+        # 各行に削除ボタンを追加（sorted_resultsを直接使用）
+        if len(sorted_results) == 0:
+            st.info("削除対象の採点結果がありません")
+        else:
+            st.write(f"**削除ボタンのループ開始**: {len(sorted_results)}件の結果に対してループを実行します")
+            # テーブル形式で削除ボタンを表示
+            for rank_idx, result in enumerate(sorted_results, 1):
+                result_id = result.get('id')
+                school_name = result.get('school_name', '不明')
+                theme_title = result.get('theme_title', '不明')
+                total_score = result.get('total_score', 0)
+                
+                # result_idがNoneの場合はスキップ
+                if result_id is None:
+                    st.warning(f"⚠️ {rank_idx}位: result_idがNoneです（スキップします）")
+                    continue
+                
+                # デバッグ情報
+                st.write(f"**処理中**: {rank_idx}位 - {school_name} (result_id={result_id})")
+                
+                # 賞を取得
+                awards = awards_dict.get(result_id, [])
+                awards_text = format_awards_display(awards)
+                school_with_award = school_name
+                if awards_text:
+                    school_with_award = f"{school_name} {awards_text}"
+                
+                # 確認状態をチェック
+                if f"pending_delete_{result_id}" not in st.session_state:
+                    st.session_state[f"pending_delete_{result_id}"] = False
+                
+                # 行を表示（より明確に表示）
+                col1, col2, col3, col4 = st.columns([1, 3, 3, 3])
+                with col1:
+                    st.markdown(f"**{rank_idx}位**")
+                with col2:
+                    st.markdown(f"**{school_with_award}**")
+                with col3:
+                    st.markdown(theme_title)
+                with col4:
+                    delete_key = f"delete_ranking_{result_id}_{rank_idx}"
+                    st.write(f"削除ボタンキー: {delete_key}")
+                    
+                    if st.session_state[f"pending_delete_{result_id}"]:
+                        # 確認モード
+                        st.warning(f"⚠️ 削除しますか？")
+                        col_confirm1, col_confirm2 = st.columns(2)
+                        with col_confirm1:
+                            if st.button("✅ 確定", key=f"confirm_{delete_key}", type="primary"):
+                                # 削除を実行
+                                try:
+                                    # 採点結果を取得してsubmission_idを取得
+                                    result_obj = get_evaluation_result(result_id)
+                                    submission_id = result_obj.get('submission_id') if result_obj else None
+                                    
+                                    # 採点結果を削除（評価詳細も自動削除される）
+                                    if delete_evaluation_result(result_id):
+                                        # 関連するファイルも削除（物理ファイルも削除）
+                                        if submission_id:
+                                            # ファイルの物理削除も実行
+                                            files = get_files_by_submission(submission_id)
+                                            for file_info in files:
+                                                file_path = Path(file_info.get('file_path', ''))
+                                                if file_path.exists():
+                                                    try:
+                                                        file_path.unlink()
+                                                    except Exception as e:
+                                                        st.warning(f"ファイル削除エラー: {e}")
+                                            
+                                            # ファイルメタデータを削除
+                                            delete_files_by_submission(submission_id)
+                                        
+                                        st.success(f"✅ 「{school_name}」の採点結果を削除しました")
+                                        st.session_state[f"pending_delete_{result_id}"] = False
+                                        st.rerun()
+                                    else:
+                                        st.error("削除に失敗しました")
+                                        st.session_state[f"pending_delete_{result_id}"] = False
+                                except Exception as e:
+                                    st.error(f"削除中にエラーが発生しました: {str(e)}")
+                                    import traceback
+                                    st.code(traceback.format_exc())
+                                    st.session_state[f"pending_delete_{result_id}"] = False
+                        with col_confirm2:
+                            if st.button("❌ キャンセル", key=f"cancel_{delete_key}"):
+                                st.session_state[f"pending_delete_{result_id}"] = False
+                                st.rerun()
+                    else:
+                        # 通常モード - ボタンを目立たせる
+                        if st.button("🗑️ 削除", key=delete_key, type="secondary", use_container_width=True):
+                            st.session_state[f"pending_delete_{result_id}"] = True
+                            st.rerun()
+                
+                st.divider()
         
         # 賞の説明
         st.markdown("---")
@@ -252,7 +373,38 @@ if page == "🏠 ダッシュボード":
         st.markdown("""
         - 🏆 **最優秀賞**: 総合スコア1位
         - 🥇 **優秀賞**: 総合スコア2-3位
+        - ⭐ **特別審査員賞**: 審査員が特別に選定（手動設定）
         """)
+        
+        # 表彰状表示セクション
+        st.markdown("---")
+        st.subheader("📜 表彰状")
+        
+        # 賞を獲得した学校の表彰状を表示
+        award_winners = []
+        for result_id, awards in awards_dict.items():
+            if awards:
+                result = next((r for r in sorted_results if r.get('id') == result_id), None)
+                if result:
+                    award_winners.append((result, awards))
+        
+        if award_winners:
+            for result, awards in award_winners:
+                school_name = result.get('school_name', '不明')
+                theme_title = result.get('theme_title', '不明')
+                
+                with st.expander(f"🏆 {school_name} - {theme_title}", expanded=False):
+                    certificates = generate_certificate_for_result(
+                        result,
+                        awards,
+                        completed_results
+                    )
+                    
+                    for award_type, certificate_text in certificates.items():
+                        st.markdown(certificate_text)
+                        st.markdown("---")
+        else:
+            st.info("まだ賞を獲得した学校がありません。")
     else:
         st.info("まだ採点結果がありません")
 
@@ -297,7 +449,7 @@ elif page == "📝 採点ワークフロー":
     else:
         selected_school = st.selectbox("参加校を選択", list(school_options.keys()), key="workflow_school_select")
     
-    school_id = school_options[selected_school]
+        school_id = school_options[selected_school]
     
     # 再採点モードの場合、既存の提出資料情報を取得
     existing_submission = None
@@ -329,10 +481,10 @@ elif page == "📝 採点ワークフロー":
     st.subheader("2. テーマ情報とファイルを入力")
     theme_title = st.text_input("テーマタイトル *", key="workflow_theme_title")
     theme_description = st.text_area("テーマ説明", key="workflow_theme_description")
-    
-    uploaded_files = st.file_uploader(
-        "ファイルを選択（PDF、PowerPoint、テキスト）",
-        type=['pdf', 'pptx', 'ppt', 'txt'],
+        
+        uploaded_files = st.file_uploader(
+            "ファイルを選択（PDF、PowerPoint、テキスト）",
+            type=['pdf', 'pptx', 'ppt', 'txt'],
         accept_multiple_files=True,
         key="workflow_upload_files"
     )
@@ -389,6 +541,7 @@ elif page == "📝 採点ワークフロー":
                         upload_dir = Path("uploads") / str(submission_id)
                         upload_dir.mkdir(parents=True, exist_ok=True)
                     
+                    # ファイルをアップロードして保存
                     files = []
                     for uploaded_file in uploaded_files:
                         file_path = save_uploaded_file(uploaded_file, upload_dir)
@@ -469,9 +622,17 @@ elif page == "📝 採点ワークフロー":
                                                        score, reason)
                                 total_score += score
                             except Exception as e:
-                                st.error(f"評価項目 {criterion['criterion_name']} の採点でエラー: {str(e)}")
+                                error_msg = str(e)
+                                # 403エラーの場合は詳細なメッセージを表示
+                                if "403" in error_msg or "Forbidden" in error_msg:
+                                    st.error(f"❌ 評価項目 {criterion['criterion_name']} の採点でエラーが発生しました")
+                                    st.error(error_msg)
+                                    st.warning("💡 APIキーの設定を確認してください。「⚙️ API設定」ページで再設定できます。")
+                                else:
+                                    st.error(f"評価項目 {criterion['criterion_name']} の採点でエラー: {error_msg}")
+                                
                                 create_evaluation_detail(result_id, criterion['id'], 0,
-                                                       f"採点エラー: {str(e)}")
+                                                       f"採点エラー: {error_msg}")
                         
                         # 採点結果を更新
                         update_evaluation_result(result_id, total_score, "completed")
@@ -484,6 +645,40 @@ elif page == "📝 採点ワークフロー":
                         else:
                             st.success(f"採点が完了しました！総合スコア: {total_score}/60")
                         st.info("採点結果は「🏫 参加校管理」ページのデータ一覧で確認できます。")
+                        
+                        # 表彰状の表示（賞を獲得した場合）
+                        try:
+                            st.markdown("---")
+                            st.subheader("🏆 表彰状")
+                            
+                            # 採点結果を取得
+                            final_result = get_evaluation_result(result_id)
+                            if final_result:
+                                # すべての採点結果を取得して賞を判定
+                                all_results = get_all_evaluation_results()
+                                completed_results = [r for r in all_results if r.get("evaluation_status") == "completed"]
+                                awards_dict = determine_awards(completed_results)
+                                
+                                # この採点結果に付与された賞を取得
+                                awards = awards_dict.get(result_id, [])
+                                
+                                if awards:
+                                    # 表彰状を生成して表示
+                                    certificates = generate_certificate_for_result(
+                                        final_result,
+                                        awards,
+                                        completed_results
+                                    )
+                                    
+                                    for award_type, certificate_text in certificates.items():
+                                        st.markdown(certificate_text)
+                                        st.markdown("---")
+                                else:
+                                    st.info("今回の採点では賞を獲得していません。")
+                        except Exception as e:
+                            st.warning(f"表彰状の表示でエラーが発生しました: {str(e)}")
+                            import traceback
+                            st.code(traceback.format_exc())
                         
                         # 再採点モードのセッション状態をクリア
                         if is_rescore_mode:
@@ -499,11 +694,11 @@ elif page == "📝 採点ワークフロー":
                             del st.session_state.workflow_theme_description
                         if 'workflow_upload_files' in st.session_state:
                             del st.session_state.workflow_upload_files
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"エラーが発生しました: {str(e)}")
-                    import traceback
-                    st.code(traceback.format_exc())
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"エラーが発生しました: {str(e)}")
+                            import traceback
+                            st.code(traceback.format_exc())
 
 # 参加校管理
 elif page == "🏫 参加校管理":
@@ -619,13 +814,20 @@ elif page == "🏫 参加校管理":
                 school_id = row.get('id')
                 school_name = row.get('name', '不明')
                 if school_id is not None:
-                    # 再採点ボタンと削除ボタンを配置
-                    col1, col2, col3 = st.columns([1, 1, 8])
-                    
-                    with col1:
-                        # 再採点ボタン（採点結果がある場合のみ表示）
-                        if school_id in school_submissions:
-                            submission_id = school_submissions[school_id]
+                    # 採点結果がある場合の処理
+                    if school_id in school_results:
+                        result = school_results[school_id]
+                        result_id = result.get('id')
+                        submission_id = school_submissions[school_id]
+                        
+                        # 特別審査員賞の設定状態を取得
+                        has_special_award = get_special_judge_award(result_id)
+                        
+                        # 再採点ボタン、特別審査員賞設定、削除ボタンを配置
+                        col1, col2, col3, col4 = st.columns([1, 1, 1, 7])
+                        
+                        with col1:
+                            # 再採点ボタン
                             rescore_key = f"rescore_school_{school_id}_{row_idx}"
                             if st.button("🔄 再採点", key=rescore_key, type="primary"):
                                 # 再採点対象の情報をセッション状態に保存
@@ -634,20 +836,71 @@ elif page == "🏫 参加校管理":
                                 # 採点ワークフローのページに移動
                                 st.session_state.current_page = "📝 採点ワークフロー"
                                 st.rerun()
-                    
-                    with col2:
-                        delete_key = f"delete_school_table_{school_id}_{row_idx}"
-                        if st.button("🗑️ 削除", key=delete_key, type="secondary"):
-                            if delete_school(school_id):
-                                st.success(f"{school_name}を削除しました")
+                        
+                        with col2:
+                            # 特別審査員賞の設定
+                            special_award_key = f"special_award_{school_id}_{row_idx}"
+                            if st.button("⭐ 特別審査員賞" if not has_special_award else "⭐ 特別審査員賞（設定済）", 
+                                       key=special_award_key, 
+                                       type="secondary" if not has_special_award else "primary"):
+                                set_special_judge_award(result_id, not has_special_award)
                                 st.rerun()
-                            else:
-                                st.error("削除に失敗しました")
+                        
+                        with col3:
+                            # 削除ボタン
+                            delete_key = f"delete_school_table_{school_id}_{row_idx}"
+                            if st.button("🗑️ 削除", key=delete_key, type="secondary"):
+                                if delete_school(school_id):
+                                    st.success(f"{school_name}を削除しました")
+                                    st.rerun()
+                                else:
+                                    st.error("削除に失敗しました")
+                        
+                        with col4:
+                            # 表彰状表示ボタン
+                            certificate_key = f"certificate_{school_id}_{row_idx}"
+                            if st.button("📜 表彰状を表示", key=certificate_key):
+                                # 表彰状を表示
+                                all_results = get_all_evaluation_results()
+                                completed_results = [r for r in all_results if r.get("evaluation_status") == "completed"]
+                                awards_dict = determine_awards(completed_results)
+                                awards = awards_dict.get(result_id, [])
+                                
+                                if awards:
+                                    certificates = generate_certificate_for_result(
+                                        result,
+                                        awards,
+                                        completed_results
+                                    )
+                                    
+                                    st.markdown("---")
+                                    st.subheader("🏆 表彰状")
+                                    for award_type, certificate_text in certificates.items():
+                                        st.markdown(certificate_text)
+                                        st.markdown("---")
+                                else:
+                                    st.info("この採点結果では賞を獲得していません。")
+                    else:
+                        # 採点結果がない場合
+                        col1, col2, col3 = st.columns([1, 1, 8])
+                        
+                        with col1:
+                            st.write("")  # スペーサー
+                        
+                        with col2:
+                            delete_key = f"delete_school_table_{school_id}_{row_idx}"
+                            if st.button("🗑️ 削除", key=delete_key, type="secondary"):
+                                if delete_school(school_id):
+                                    st.success(f"{school_name}を削除しました")
+                                    st.rerun()
+                                else:
+                                    st.error("削除に失敗しました")
+                        
+                        with col3:
+                            st.write(f"**{school_name}**")
                     
-                    with col3:
-                        st.write(f"**{school_name}**")
                     st.divider()
         else:
-            st.dataframe(df, width='stretch')
+        st.dataframe(df, width='stretch')
     else:
         st.info("参加校が登録されていません")

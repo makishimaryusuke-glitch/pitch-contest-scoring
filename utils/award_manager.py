@@ -50,6 +50,10 @@ def determine_awards(results: List[Dict[str, Any]]) -> Dict[int, List[str]]:
         elif idx in [1, 2]:
             award_list.append("🥇 優秀賞")
         
+        # 特別審査員賞（手動設定）
+        if result.get('special_judge_award', False):
+            award_list.append("⭐ 特別審査員賞")
+        
         if award_list:
             awards[result_id] = award_list
     

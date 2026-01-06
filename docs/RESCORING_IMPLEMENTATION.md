@@ -98,3 +98,10 @@ def rescore_submission_overwrite(submission_id: int) -> dict:
 
 採点履歴が必要な場合は、別途履歴機能を追加することも可能です。
 
+
+
+
+
+
+
+

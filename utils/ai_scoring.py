@@ -330,7 +330,39 @@ def evaluate_with_openai(content: str, criterion_id: int) -> Dict[str, any]:
         
         return result
     except Exception as e:
-        raise Exception(f"OpenAI API呼び出しエラー: {e}")
+        error_msg = str(e)
+        # 403エラーの場合の詳細なメッセージ
+        if "403" in error_msg or "Forbidden" in error_msg:
+            raise Exception(
+                f"OpenAI APIへのアクセスが拒否されました（403エラー）。\n"
+                f"考えられる原因：\n"
+                f"1. APIキーが無効または期限切れ\n"
+                f"2. APIキーの権限が不足している\n"
+                f"3. APIキーの使用量制限に達している\n"
+                f"4. APIキーが正しく設定されていない\n\n"
+                f"解決方法：\n"
+                f"- 「⚙️ API設定」ページでAPIキーを再設定してください\n"
+                f"- OpenAIのダッシュボードでAPIキーの状態を確認してください\n"
+                f"- Streamlit Cloudを使用している場合、Secrets設定を確認してください\n"
+                f"元のエラー: {error_msg}"
+            )
+        # 401エラーの場合（認証エラー）
+        elif "401" in error_msg or "Unauthorized" in error_msg:
+            raise Exception(
+                f"OpenAI APIの認証に失敗しました（401エラー）。\n"
+                f"APIキーが正しく設定されていないか、無効です。\n"
+                f"「⚙️ API設定」ページでAPIキーを再設定してください。\n"
+                f"元のエラー: {error_msg}"
+            )
+        # 429エラー（レート制限）
+        elif "429" in error_msg or "rate limit" in error_msg.lower():
+            raise Exception(
+                f"OpenAI APIのレート制限に達しました（429エラー）。\n"
+                f"しばらく待ってから再度お試しください。\n"
+                f"元のエラー: {error_msg}"
+            )
+        else:
+            raise Exception(f"OpenAI API呼び出しエラー: {error_msg}")
 
 def evaluate_with_gemini(content: str, criterion_id: int) -> Dict[str, any]:
     """Google Geminiを使用して採点"""
@@ -424,7 +456,40 @@ def evaluate_with_gemini(content: str, criterion_id: int) -> Dict[str, any]:
         
         return result
     except Exception as e:
-        raise Exception(f"Gemini API呼び出しエラー: {e}")
+        error_msg = str(e)
+        # 403エラーの場合の詳細なメッセージ
+        if "403" in error_msg or "Forbidden" in error_msg or "PERMISSION_DENIED" in error_msg:
+            raise Exception(
+                f"Google Gemini APIへのアクセスが拒否されました（403エラー）。\n"
+                f"考えられる原因：\n"
+                f"1. APIキーが無効または期限切れ\n"
+                f"2. APIキーの権限が不足している\n"
+                f"3. APIキーの使用量制限に達している\n"
+                f"4. APIキーが正しく設定されていない\n"
+                f"5. Gemini APIが有効化されていない（Google Cloud Consoleで確認）\n\n"
+                f"解決方法：\n"
+                f"- 「⚙️ API設定」ページでAPIキーを再設定してください\n"
+                f"- Google Cloud ConsoleでGemini APIが有効化されているか確認してください\n"
+                f"- Streamlit Cloudを使用している場合、Secrets設定を確認してください\n"
+                f"元のエラー: {error_msg}"
+            )
+        # 401エラーの場合（認証エラー）
+        elif "401" in error_msg or "Unauthorized" in error_msg or "API_KEY_INVALID" in error_msg:
+            raise Exception(
+                f"Google Gemini APIの認証に失敗しました（401エラー）。\n"
+                f"APIキーが正しく設定されていないか、無効です。\n"
+                f"「⚙️ API設定」ページでAPIキーを再設定してください。\n"
+                f"元のエラー: {error_msg}"
+            )
+        # 429エラー（レート制限）
+        elif "429" in error_msg or "rate limit" in error_msg.lower() or "RESOURCE_EXHAUSTED" in error_msg:
+            raise Exception(
+                f"Google Gemini APIのレート制限に達しました（429エラー）。\n"
+                f"しばらく待ってから再度お試しください。\n"
+                f"元のエラー: {error_msg}"
+            )
+        else:
+            raise Exception(f"Gemini API呼び出しエラー: {error_msg}")
 
 def evaluate_criterion(content: str, criterion_id: int) -> Dict[str, any]:
     """評価項目ごとに採点を実行"""

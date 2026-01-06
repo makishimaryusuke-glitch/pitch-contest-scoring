@@ -37,7 +37,7 @@ def save_json(file_path: Path, data: List[Dict[str, Any]]):
         # 一時ファイルに書き込んでからリネーム（アトミック書き込み）
         temp_file = file_path.with_suffix('.json.tmp')
         with open(temp_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump(data, f, ensure_ascii=False, indent=2)
         
         # 一時ファイルをリネーム（アトミック操作）
         temp_file.replace(file_path)
@@ -228,6 +228,24 @@ def update_evaluation_result(result_id: int, total_score: int, status: str,
             result['updated_at'] = datetime.now().isoformat()
             break
     save_json(EVALUATION_RESULTS_FILE, results)
+
+def set_special_judge_award(result_id: int, is_awarded: bool = True):
+    """特別審査員賞を設定"""
+    results = load_json(EVALUATION_RESULTS_FILE)
+    for result in results:
+        if result['id'] == result_id:
+            result['special_judge_award'] = is_awarded
+            result['updated_at'] = datetime.now().isoformat()
+            break
+    save_json(EVALUATION_RESULTS_FILE, results)
+
+def get_special_judge_award(result_id: int) -> bool:
+    """特別審査員賞の設定を取得"""
+    results = load_json(EVALUATION_RESULTS_FILE)
+    result = next((r for r in results if r['id'] == result_id), None)
+    if result:
+        return result.get('special_judge_award', False)
+    return False
 
 def create_evaluation_detail(result_id: int, criterion_id: int,
                              score: int, evaluation_reason: str) -> int:
