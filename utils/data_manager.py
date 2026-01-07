@@ -37,7 +37,7 @@ def save_json(file_path: Path, data: List[Dict[str, Any]]):
         # 一時ファイルに書き込んでからリネーム（アトミック書き込み）
         temp_file = file_path.with_suffix('.json.tmp')
         with open(temp_file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(data, f, ensure_ascii=False, indent=2)
         
         # 一時ファイルをリネーム（アトミック操作）
         temp_file.replace(file_path)
