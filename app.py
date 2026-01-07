@@ -623,13 +623,20 @@ elif page == "📝 採点ワークフロー":
                                 total_score += score
                             except Exception as e:
                                 error_msg = str(e)
+                                # レート制限エラーの場合は詳細なメッセージを表示
+                                if "429" in error_msg or "rate limit" in error_msg.lower() or "quota" in error_msg.lower():
+                                    st.error(f"⚠️ 評価項目 {criterion['criterion_name']} の採点でレート制限エラーが発生しました")
+                                    st.error(error_msg)
+                                    st.warning("💡 Google Gemini APIのレート制限に達しました。無料プランの場合、1分あたり5リクエスト、1日あたり25リクエストに制限されています。")
+                                    st.info("📌 対処方法：\n1. 1-2分待ってから再度お試しください\n2. 有料プランにアップグレードすると制限が緩和されます\n3. Google Cloud ConsoleでAPIの利用状況を確認してください")
                                 # 403エラーの場合は詳細なメッセージを表示
-                                if "403" in error_msg or "Forbidden" in error_msg:
+                                elif "403" in error_msg or "Forbidden" in error_msg:
                                     st.error(f"❌ 評価項目 {criterion['criterion_name']} の採点でエラーが発生しました")
                                     st.error(error_msg)
                                     st.warning("💡 APIキーの設定を確認してください。「⚙️ API設定」ページで再設定できます。")
                                 else:
-                                    st.error(f"評価項目 {criterion['criterion_name']} の採点でエラー: {error_msg}")
+                                    st.error(f"❌ 評価項目 {criterion['criterion_name']} の採点でエラーが発生しました")
+                                    st.error(error_msg)
                                 
                                 create_evaluation_detail(result_id, criterion['id'], 0,
                                                        f"採点エラー: {error_msg}")

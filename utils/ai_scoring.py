@@ -364,12 +364,13 @@ def evaluate_with_openai(content: str, criterion_id: int) -> Dict[str, any]:
         else:
             raise Exception(f"OpenAI API呼び出しエラー: {error_msg}")
 
-def evaluate_with_gemini(content: str, criterion_id: int) -> Dict[str, any]:
-    """Google Geminiを使用して採点"""
+def evaluate_with_gemini(content: str, criterion_id: int, retry_count: int = 0, max_retries: int = 3) -> Dict[str, any]:
+    """Google Geminiを使用して採点（レート制限対応のリトライ機能付き）"""
     if not _genai_configured:
         raise ValueError("Google Gemini APIキーが設定されていません")
     
     import google.generativeai as genai
+    import time
     
     prompt_template = EVALUATION_PROMPTS[criterion_id]["prompt"]
     prompt = prompt_template.format(content=content[:8000])
@@ -481,25 +482,80 @@ def evaluate_with_gemini(content: str, criterion_id: int) -> Dict[str, any]:
                 f"「⚙️ API設定」ページでAPIキーを再設定してください。\n"
                 f"元のエラー: {error_msg}"
             )
-        # 429エラー（レート制限）
-        elif "429" in error_msg or "rate limit" in error_msg.lower() or "RESOURCE_EXHAUSTED" in error_msg:
-            raise Exception(
-                f"Google Gemini APIのレート制限に達しました（429エラー）。\n"
-                f"しばらく待ってから再度お試しください。\n"
-                f"元のエラー: {error_msg}"
-            )
+        # 429エラー（レート制限）- リトライ可能
+        elif ("429" in error_msg or "rate limit" in error_msg.lower() or 
+              "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower()):
+            if retry_count < max_retries:
+                # レート制限の場合は待機してリトライ
+                wait_time = (retry_count + 1) * 15  # 15秒、30秒、45秒と段階的に待機
+                raise Exception(
+                    f"⚠️ Google Gemini APIのレート制限に達しました（429エラー）。\n"
+                    f"{wait_time}秒待機してからリトライします（{retry_count + 1}/{max_retries}回目）...\n\n"
+                    f"【レート制限について】\n"
+                    f"無料プランの場合：\n"
+                    f"- 1分あたり5リクエスト（RPM）\n"
+                    f"- 1日あたり25リクエスト（RPD）\n\n"
+                    f"元のエラー: {error_msg}"
+                )
+            else:
+                # 最大リトライ回数に達した場合
+                raise Exception(
+                    f"⚠️ Google Gemini APIのレート制限に達しました（429エラー）。\n"
+                    f"最大リトライ回数（{max_retries}回）に達しました。\n\n"
+                    f"【レート制限について】\n"
+                    f"無料プランの場合：\n"
+                    f"- 1分あたり5リクエスト（RPM）\n"
+                    f"- 1日あたり25リクエスト（RPD）\n\n"
+                    f"【対処方法】\n"
+                    f"1. 1-2分待ってから再度お試しください\n"
+                    f"2. 有料プランにアップグレードすると、制限が緩和されます（RPM 300、RPD 1,000）\n"
+                    f"3. Google Cloud ConsoleでAPIの利用状況を確認してください\n\n"
+                    f"元のエラー: {error_msg}"
+                )
         else:
             raise Exception(f"Gemini API呼び出しエラー: {error_msg}")
 
 def evaluate_criterion(content: str, criterion_id: int) -> Dict[str, any]:
-    """評価項目ごとに採点を実行"""
+    """評価項目ごとに採点を実行（レート制限対応のリトライ機能付き）"""
     if not is_api_configured():
         raise ValueError("APIキーが設定されていません。設定ページでAPIキーを入力してください。")
+    
+    import time
     
     if _ai_provider == "openai":
         return evaluate_with_openai(content, criterion_id)
     elif _ai_provider == "gemini":
-        return evaluate_with_gemini(content, criterion_id)
+        # レート制限対応：リトライロジック
+        max_retries = 3
+        retry_count = 0
+        last_error = None
+        
+        while retry_count <= max_retries:
+            try:
+                return evaluate_with_gemini(content, criterion_id, retry_count, max_retries)
+            except Exception as e:
+                error_msg = str(e)
+                # レート制限エラーの場合、待機してリトライ
+                if ("429" in error_msg or "rate limit" in error_msg.lower() or 
+                    "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower()):
+                    if retry_count < max_retries:
+                        wait_time = (retry_count + 1) * 15  # 15秒、30秒、45秒と段階的に待機
+                        last_error = e
+                        retry_count += 1
+                        time.sleep(wait_time)  # 待機
+                        continue
+                    else:
+                        # 最大リトライ回数に達した場合
+                        raise e
+                else:
+                    # レート制限以外のエラーはそのまま再発生
+                    raise e
+        
+        # すべてのリトライが失敗した場合
+        if last_error:
+            raise last_error
+        else:
+            raise Exception("採点中に予期しないエラーが発生しました")
     else:
         raise ValueError(f"サポートされていないAIプロバイダー: {_ai_provider}")
 
