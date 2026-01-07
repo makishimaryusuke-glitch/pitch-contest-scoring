@@ -481,10 +481,10 @@ elif page == "📝 採点ワークフロー":
     st.subheader("2. テーマ情報とファイルを入力")
     theme_title = st.text_input("テーマタイトル *", key="workflow_theme_title")
     theme_description = st.text_area("テーマ説明", key="workflow_theme_description")
-        
-        uploaded_files = st.file_uploader(
-            "ファイルを選択（PDF、PowerPoint、テキスト）",
-            type=['pdf', 'pptx', 'ppt', 'txt'],
+    
+    uploaded_files = st.file_uploader(
+        "ファイルを選択（PDF、PowerPoint、テキスト）",
+        type=['pdf', 'pptx', 'ppt', 'txt'],
         accept_multiple_files=True,
         key="workflow_upload_files"
     )
@@ -694,11 +694,12 @@ elif page == "📝 採点ワークフロー":
                             del st.session_state.workflow_theme_description
                         if 'workflow_upload_files' in st.session_state:
                             del st.session_state.workflow_upload_files
-                                st.rerun()
-                        except Exception as e:
-                            st.error(f"エラーが発生しました: {str(e)}")
-                            import traceback
-                            st.code(traceback.format_exc())
+                        
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"エラーが発生しました: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
 
 # 参加校管理
 elif page == "🏫 参加校管理":
@@ -901,6 +902,6 @@ elif page == "🏫 参加校管理":
                     
                     st.divider()
         else:
-        st.dataframe(df, width='stretch')
+            st.dataframe(df, width='stretch')
     else:
         st.info("参加校が登録されていません")
