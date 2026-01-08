@@ -45,6 +45,17 @@ def save_json(file_path: Path, data: List[Dict[str, Any]]):
         # ファイルが正しく保存されたか確認
         if not file_path.exists():
             raise IOError(f"ファイルの保存に失敗しました: {file_path}")
+        
+        # Streamlit Cloudでのデータ永続化のため、セッション状態に変更フラグを設定
+        try:
+            import streamlit as st
+            if 'data_changed' not in st.session_state:
+                st.session_state.data_changed = False
+            st.session_state.data_changed = True
+            st.session_state.last_data_change_time = datetime.now().isoformat()
+        except:
+            # Streamlitコンテキスト外では無視
+            pass
             
     except Exception as e:
         # エラーが発生した場合はログに記録

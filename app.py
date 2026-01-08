@@ -15,6 +15,7 @@ from utils.award_manager import determine_awards, format_awards_display
 from utils.data_persistence_helper import ensure_data_directory, show_data_persistence_info, check_data_persistence
 from utils.rescoring import rescore_submission
 from utils.certificate_generator import generate_certificate_for_result
+from utils.backup_restore import create_backup, restore_backup, get_backup_info
 import pandas as pd
 
 # 環境変数からAPIキーを初期化（Streamlit Cloud用）
@@ -49,7 +50,8 @@ pages = [
     "🏠 ダッシュボード",
     "⚙️ API設定",
     "📝 採点ワークフロー",
-    "🏫 参加校管理"
+    "🏫 参加校管理",
+    "💾 データ管理"
 ]
 
 # radioボタンでページ選択（選択状態が視覚的に分かる）
@@ -204,10 +206,21 @@ if page == "🏠 ダッシュボード":
         avg_score = sum(r["total_score"] for r in completed_results) / len(completed_results) if completed_results else 0
         st.metric("平均スコア", f"{avg_score:.1f}/60")
     
+    # データ変更の通知とバックアップ推奨
+    if st.session_state.get('data_changed', False):
+        st.warning("""
+        ⚠️ **データが変更されました**
+        
+        データを失わないために、バックアップをダウンロードすることをお勧めします。
+        「💾 データ管理」ページからバックアップをダウンロードできます。
+        """)
+        if st.button("💾 データ管理ページへ移動", key="go_to_data_management"):
+            st.session_state.current_page = "💾 データ管理"
+            st.rerun()
+    
     # データ永続化の状態を表示（折りたたみ可能）
-    # 一時的にコメントアウト（削除ボタンの表示確認のため）
-    # with st.expander("📁 データ永続化の状態", expanded=False):
-    #     show_data_persistence_info()
+    with st.expander("📁 データ永続化の状態", expanded=False):
+        show_data_persistence_info()
     
     # ランキング表示（総合スコア順）
     st.subheader("🏆 採点結果ランキング")
@@ -912,3 +925,133 @@ elif page == "🏫 参加校管理":
             st.dataframe(df, width='stretch')
     else:
         st.info("参加校が登録されていません")
+
+# データ管理
+elif page == "💾 データ管理":
+    st.title("💾 データ管理")
+    
+    st.warning("""
+    **⚠️ 重要: Streamlit Cloudでのデータ永続化について**
+    
+    Streamlit Cloudでは、ファイルシステムは一時的です。アプリを再起動したり再デプロイすると、データが消える可能性があります。
+    
+    **データを失わないために：**
+    1. 定期的にバックアップをダウンロードしてください
+    2. 重要なデータ変更後は必ずバックアップを取ってください
+    3. バックアップファイルは安全な場所に保管してください
+    """)
+    
+    st.divider()
+    
+    # データファイルの状態を表示
+    st.subheader("📊 データファイルの状態")
+    backup_info = get_backup_info()
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("データファイル数", backup_info["total_files"])
+    with col2:
+        st.metric("総データサイズ", f"{backup_info['total_size']:,} bytes")
+    with col3:
+        total_records = sum(f["count"] for f in backup_info["files"])
+        st.metric("総レコード数", total_records)
+    
+    st.markdown("#### 詳細情報")
+    for file_info in backup_info["files"]:
+        if file_info["exists"]:
+            st.success(f"✅ **{file_info['name']}**: {file_info['count']}件 ({file_info['size']:,} bytes)")
+        else:
+            st.warning(f"⚠️ **{file_info['name']}**: ファイルが存在しません")
+    
+    st.divider()
+    
+    # バックアップと復元
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📥 バックアップのダウンロード")
+        st.info("すべてのデータをZIPファイルとしてダウンロードします。")
+        
+        if st.button("バックアップを作成", key="create_backup", type="primary"):
+            try:
+                backup_data = create_backup()
+                backup_filename = f"pitch_contest_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+                
+                st.download_button(
+                    label="📥 バックアップをダウンロード",
+                    data=backup_data,
+                    file_name=backup_filename,
+                    mime="application/zip",
+                    key="download_backup"
+                )
+                st.success("✅ バックアップファイルを作成しました。上記のボタンからダウンロードしてください。")
+            except Exception as e:
+                st.error(f"バックアップの作成に失敗しました: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
+    
+    with col2:
+        st.subheader("📤 バックアップからの復元")
+        st.info("以前にダウンロードしたバックアップファイルをアップロードしてデータを復元します。")
+        st.warning("⚠️ **注意**: 復元を実行すると、現在のデータが上書きされます。")
+        
+        uploaded_file = st.file_uploader(
+            "バックアップファイルを選択",
+            type=["zip"],
+            key="restore_backup_file"
+        )
+        
+        if uploaded_file is not None:
+            if st.button("復元を実行", key="execute_restore", type="primary"):
+                try:
+                    backup_bytes = uploaded_file.read()
+                    result = restore_backup(backup_bytes)
+                    
+                    if result["success"]:
+                        st.success("✅ データの復元が完了しました！")
+                        st.info(f"復元されたファイル: {', '.join(result['restored_files'])}")
+                        if result["backup_date"]:
+                            st.info(f"バックアップ日時: {result['backup_date']}")
+                        st.rerun()
+                    else:
+                        st.error("❌ データの復元に失敗しました。")
+                        if result["errors"]:
+                            for error in result["errors"]:
+                                st.error(f"- {error}")
+                except Exception as e:
+                    st.error(f"復元処理中にエラーが発生しました: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
+    
+    st.divider()
+    
+    # データの永続化についての説明
+    st.subheader("ℹ️ データ永続化について")
+    st.markdown("""
+    ### Streamlit Cloudでのデータ保存について
+    
+    **現在の状況：**
+    - データは`data/`ディレクトリのJSONファイルに保存されます
+    - Streamlit Cloudでは、ファイルシステムは一時的です
+    - アプリの再起動や再デプロイでデータが消える可能性があります
+    
+    **推奨される運用方法：**
+    1. **定期的なバックアップ**: 重要なデータ入力後は必ずバックアップをダウンロード
+    2. **Gitへのコミット**: データファイルをGitリポジトリにコミットすることで永続化（`.gitignore`で`data/*.json`をコメントアウト）
+    3. **外部ストレージ**: Google Drive、AWS S3、Supabaseなどの外部ストレージを使用（高度）
+    
+    ### データが消えてしまった場合
+    
+    1. 以前にダウンロードしたバックアップファイルがある場合：
+       - 「📤 バックアップからの復元」からファイルをアップロードして復元
+    2. Gitリポジトリにコミット済みの場合：
+       - GitHubからデータファイルを取得して復元
+    3. バックアップがない場合：
+       - 残念ながら、データの復旧はできません
+       - 今後は定期的にバックアップを取ることをお勧めします
+    """)
+    
+    # データファイルの状態を再表示
+    st.markdown("---")
+    st.subheader("📋 データファイルの詳細状態")
+    show_data_persistence_info()
