@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 ピッチコンテストAI採点システム - メインアプリケーション（シンプル版）
-認証機能なし、CSV/JSONファイル管理
+CSV/JSONファイル管理。APP_ACCESS_PASSWORD がある環境だけ合言葉を要求する。
 """
 
 import streamlit as st
@@ -16,6 +16,7 @@ from utils.data_persistence_helper import ensure_data_directory, show_data_persi
 from utils.rescoring import rescore_submission
 from utils.certificate_generator import generate_certificate_for_result
 from utils.backup_restore import create_backup, restore_backup, get_backup_info
+from utils.access_gate import require_access
 import pandas as pd
 
 # 環境変数からAPIキーを初期化（Streamlit Cloud用）
@@ -31,6 +32,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+require_access()
 
 # APIキーの設定（セッション状態）
 if 'api_key_set' not in st.session_state:
